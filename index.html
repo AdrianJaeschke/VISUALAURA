@@ -2,65 +2,28 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Minimal Hybrid Spike Sphere</title>
-    
+    <title>Configurable Spike Sphere</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
-
     <style>
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
-            background: #000; 
-        }
-        
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
         canvas { display: block; }
-        
-        /* Typo ohne Hintergrund direkt auf dem Bild */
         #ui {
-            position: fixed; 
-            top: 30px; 
-            left: 30px; 
-            color: #00f0ff; 
-            font-family: "Boldonse", system-ui; 
-            font-size: 45px;
-            pointer-events: none; 
-            z-index: 100; 
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            line-height: 1.6;
-            /* Subtiler Glow für Lesbarkeit auf hellem Grund */
-            text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+            position: fixed; top: 30px; left: 30px; color: #00f0ff; 
+            font-family: "Boldonse", system-ui; font-size: 13px;
+            pointer-events: none; z-index: 100; text-transform: uppercase;
+            letter-spacing: 2px; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
         }
-
-        /* Mobile Overlay ohne Blur/Hintergrund für maximale Transparenz */
         #mobile-overlay {
-            position: fixed; 
-            inset: 0; 
-            display: none; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center;
-            z-index: 1000;
+            position: fixed; inset: 0; display: none; flex-direction: column; 
+            justify-content: center; align-items: center; z-index: 1000;
         }
-
         #start-btn {
-            padding: 15px 30px; 
-            background: transparent; 
-            border: 1px solid #00f0ff;
-            color: #00f0ff; 
-            font-family: "Boldonse", system-ui;
-            font-size: 16px; 
-            cursor: pointer; 
-            text-transform: uppercase;
+            padding: 15px 30px; background: transparent; border: 1px solid #00f0ff;
+            color: #00f0ff; font-family: "Boldonse", system-ui;
+            font-size: 16px; cursor: pointer; text-transform: uppercase;
             letter-spacing: 4px;
-            transition: all 0.3s ease;
-        }
-
-        #start-btn:active {
-            background: rgba(0, 240, 255, 0.2);
         }
     </style>
 </head>
@@ -72,7 +35,7 @@
 </div>
 
 <div id="mobile-overlay">
-    <button id="start-btn">Klicken und Handy bewegen/button>
+    <button id="start-btn">Activate Motion</button>
 </div>
 
 <script type="importmap">
@@ -84,14 +47,18 @@
 
     const CONFIG = {
         radius: 2.5,
-        detail: 20,
+        detail: 2,
         spikeSharpness: 25.0,
-        maxReach: 0.1,
+        maxReach: 1.9,
         stripeDensity: 15.0,
-        viewAngle: 35,
+        viewAngle: 25,
         rotationSpeed: 0.005,
         gyroSensitivity: 2.2,
-        lerpFactor: 0.05 
+        lerpFactor: 0.05,
+        // Configurable Gradient Params
+        gradientWidth: 0.5,
+        gradientStart: 0.2,
+        spikeGradientVisibility: 0.9
     };
 
     const angleThreshold = Math.cos(CONFIG.viewAngle * (Math.PI / 180));
@@ -110,8 +77,10 @@
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uIntensity: { value: 1.0 },
-            uThreshold: { value: angleThreshold }
+            uThreshold: { value: angleThreshold },
+            uGradientWidth: { value: CONFIG.gradientWidth },
+            uGradientStart: { value: CONFIG.gradientStart },
+            uSpikeVis: { value: CONFIG.spikeGradientVisibility }
         },
         vertexShader: `
             varying vec3 vNormal;
@@ -119,7 +88,6 @@
             varying float vSpike;
             uniform float uTime;
             uniform vec2 uMouse;
-            uniform float uIntensity;
 
             void main() {
                 vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
@@ -129,54 +97,53 @@
                 float influence = smoothstep(0.7, 0.0, d);
                 float noise = sin(position.x * 10.0) * cos(position.y * 10.0 + uTime);
                 vSpike = pow(max(0.0, influence + noise * 0.3), ${CONFIG.spikeSharpness.toFixed(1)});
-                vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach.toFixed(1)} * uIntensity;
+                vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach.toFixed(1)};
                 vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
                 vWorldPos = worldPos.xyz;
                 vNormal = normalize(normalMatrix * normal);
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
-       fragmentShader: `
+        fragmentShader: `
             varying vec3 vNormal;
             varying vec3 vWorldPos;
             varying float vSpike;
             uniform float uTime;
             uniform float uThreshold;
+            uniform float uGradientWidth;
+            uniform float uGradientStart;
+            uniform float uSpikeVis;
 
             vec3 spectral(float t) {
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
-                // 1. Geometrie
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
                 float cameraFacing = dot(fNormal, viewDir);
                 
-                // 2. DAS ZEBRA
+                // ZEBRA
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
-                float zebra = smoothstep(-0.01, 0.01, stripePattern); 
+                float zebra = step(0.0, stripePattern); 
                 vec3 zebraColor = vec3(zebra);
                 
-                // 3. DER VERLAUF (Farbe)
-                float colorShift = cameraFacing * 0.5 + uTime * 0.2 + vSpike * 0.4;
+                // GRADIENT
+                float colorShift = cameraFacing * 0.4 + uTime * 0.2 + vSpike * 0.5;
                 vec3 rainbow = spectral(colorShift);
                 
-                // 4. BREITERER SCHALTER (Früheres Einblenden)
-                // Wir ziehen 0.3 vom Threshold ab, damit der Verlauf viel früher startet.
-                // Ein groesserer Bereich im smoothstep (0.4 statt 0.05) macht den Übergang weicher.
-                float startFade = uThreshold - 0.4; 
-                float endFade = uThreshold + 0.2;
-                float switcher = smoothstep(startFade, endFade, cameraFacing);
+                // HARTER SWITCH (Material-Trennung)
+                // Wir nutzen step für eine messerscharfe Trennung der Flächen
+                float switchPoint = uThreshold - uGradientStart;
+                float switcher = step(switchPoint, cameraFacing + (vSpike * 0.2));
                 
-                // 5. STRIKTE TRENNUNG (mit breitem Übergang)
+                // Farbmischung (Entweder Zebra ODER Verlauf)
                 vec3 color = mix(zebraColor, rainbow, switcher);
 
-                // 6. SPIKE GLANZ
+                // SPIKE LOGIK (Zusätzliche Sichtbarkeit in den Spikes)
                 if (vSpike > 0.05) {
-                    float shine = dot(fNormal, vec3(0, 1, 0.5));
-                    // Glanz verstärkt den Verlauf zusätzlich auf den Spitzen
-                    color += spectral(vSpike + uTime) * vSpike * switcher * 0.4;
+                    float spikeRainbow = step(0.1, vSpike * uSpikeVis);
+                    color = mix(color, spectral(vSpike + uTime), spikeRainbow * switcher);
                 }
                 
                 gl_FragColor = vec4(color, 1.0);
@@ -187,26 +154,24 @@
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), material);
     scene.add(mesh);
 
+    // Device & Input Logic
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const overlay = document.getElementById('mobile-overlay');
 
     if (isMobile) {
         document.getElementById('device-mode').innerText = "System: Mobile";
         overlay.style.display = "flex";
-
         window.addEventListener('touchmove', (e) => {
             const t = e.touches[0];
             targetInput.x = (t.clientX / window.innerWidth) * 2 - 1;
             targetInput.y = (t.clientY / window.innerHeight) * 2 - 1;
         }, { passive: false });
-
         document.getElementById('start-btn').addEventListener('click', async () => {
             if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
                 const res = await DeviceOrientationEvent.requestPermission();
                 if (res === 'granted') startGyro();
             } else { startGyro(); }
         });
-
         function startGyro() {
             document.getElementById('sensor-status').innerText = "Sensor: Gyro + Touch";
             overlay.remove();
