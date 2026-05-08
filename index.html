@@ -57,13 +57,13 @@
             align-items: center;
             z-index: 1000; 
             transition: opacity 0.5s ease;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(0px);
         }
 
         #start-btn {
             padding: 18px 35px; 
             background: #000; 
-            border: 1px solid var(--accent);
+            border: 0px solid var(--accent);
             color: var(--accent); 
             font-size: 18px; 
             cursor: pointer; 
@@ -94,8 +94,7 @@
 </div>
 
 <div id="mobile-overlay">
-    <button id="start-btn" class="boldonse-regular">Enable Gyroscope</button>
-    <div class="hint boldonse-regular">Touch is already active - click for motion</div>
+    <button id="start-btn" class="boldonse-regular">KLICKEN UND HANDY BEWEGEN</button>
 </div>
 
 <script type="importmap">
@@ -228,7 +227,7 @@
         });
 
         function activateGyro() {
-            sensorLabel.innerText = "KLICKEN UND HANDY BEWEGEN";
+            sensorLabel.innerText = "GYRO ACTIVE";
             overlay.style.opacity = "0";
             setTimeout(() => overlay.remove(), 500);
             window.addEventListener('deviceorientation', (e) => {
