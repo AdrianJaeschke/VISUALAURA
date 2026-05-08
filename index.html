@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Mobile Low-Poly Spike Sphere</title>
+    <title>Hybrid Mobile Spike Sphere</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
         canvas { display: block; }
@@ -14,30 +14,31 @@
             pointer-events: none; z-index: 100;
         }
 
-        #gyro-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
-            display: flex; justify-content: center; align-items: center;
+        #mobile-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4); /* Halbtransparent, da Touch schon geht */
+            display: none; flex-direction: column; justify-content: center; align-items: center;
             z-index: 1000; transition: opacity 0.5s ease;
+            backdrop-filter: blur(4px);
         }
 
-        #gyro-button {
-            padding: 20px 40px; background: none; border: 2px solid #00f0ff;
+        #start-btn {
+            padding: 20px 40px; background: #000; border: 2px solid #00f0ff;
             color: #00f0ff; font-family: 'Courier New', monospace;
             font-size: 14px; cursor: pointer; text-transform: uppercase;
-            letter-spacing: 2px; box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
         }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    SYSTEM: <span id="status">WAITING</span><br>
-    GEOMETRY: LOW_POLY_ICOSA<br>
-    PATTERN: STABLE_PLANAR
+    MODE: <span id="device-mode">DETECTING</span><br>
+    SENSORS: <span id="sensor-status">TOUCH_ONLY</span>
 </div>
 
-<div id="gyro-overlay">
-    <button id="gyro-button">Initialize Neural Link</button>
+<div id="mobile-overlay">
+    <button id="start-btn">Enable Gyroscope</button>
+    <p style="color: #00f0ff; font-family: monospace; font-size: 10px; margin-top: 10px;">(Touch already active)</p>
 </div>
 
 <script type="importmap">
@@ -47,35 +48,27 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // ==========================================
-    // VOLLSTÄNDIGE KONFIGURATIONSLISTE
-    // ==========================================
     const CONFIG = {
-        // Geometrie
         radius: 2.5,
-        detail: 25,              // 1-3 für harten Low-Poly Look
-        
-        // Spikes
+        detail: 25,
         spikeSharpness: 25.0,
-        maxReach: 0.7,
-        
-        // Zebra & Optik
-        stripeDensity: 15.0,    // Keine Pol-Verzerrung durch planare Projektion
-        viewAngle: 35,          // Kamera-Logik: Schwellenwert in Grad
-        
-        // Bewegung & Animation
+        maxReach: 0.9,
+        stripeDensity: 15.0,
+        viewAngle: 35,
         rotationSpeed: 0.005,
-        gyroSensitivity: 1.8,
-        iridSpeed: 0.3
+        gyroSensitivity: 2.2,
+        lerpFactor: 0.1 
     };
 
-    // Berechnung des Dot-Product Schwellenwerts aus dem Winkel
     const angleThreshold = Math.cos(CONFIG.viewAngle * (Math.PI / 180));
+    let targetInput = { x: 0, y: 0 };
+    let currentInput = { x: 0, y: 0 };
+    let gyroEnabled = false;
 
+    // --- THREE.JS SETUP ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 8;
-
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
@@ -84,7 +77,7 @@
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uIntensity: { value: 0 },
+            uIntensity: { value: 1.0 }, // Von Anfang an aktiv
             uRotationY: { value: 0 },
             uThreshold: { value: angleThreshold }
         },
@@ -96,30 +89,20 @@
             uniform float uTime;
             uniform vec2 uMouse;
             uniform float uIntensity;
-            uniform float uRotationY;
-
-            mat3 rotateY(float a) {
-                return mat3(cos(a), 0, sin(a), 0, 1, 0, -sin(a), 0, cos(a));
-            }
 
             void main() {
                 vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
                 vec4 pPos = projectionMatrix * mvPos;
                 vec2 ndc = pPos.xy / pPos.w;
-                
                 float d = distance(ndc, uMouse);
-                float influence = smoothstep(0.65, 0.0, d);
-                
+                float influence = smoothstep(0.7, 0.0, d);
                 float noise = sin(position.x * 10.0) * cos(position.y * 10.0 + uTime);
                 vSpike = pow(max(0.0, influence + noise * 0.3), ${CONFIG.spikeSharpness.toFixed(1)});
-
                 vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach.toFixed(1)} * uIntensity;
-                
                 vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
                 vWorldPos = worldPos.xyz;
                 vNormal = normalize(normalMatrix * normal);
                 vViewDir = normalize(cameraPosition - vWorldPos);
-                
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
@@ -136,31 +119,20 @@
             }
 
             void main() {
-                // Low-Poly Shading
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 float cameraFacing = dot(fNormal, vViewDir);
-                
-                // Zebra: Planare Projektion (Schwarz-Weiß harten Kontrast)
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
                 float zebra = step(0.0, stripePattern);
-                
                 vec3 color = vec3(zebra);
 
-                // 25 Grad Iridiszenz von der Kamera aus
                 if (cameraFacing > uThreshold) {
                     float shift = (cameraFacing - uThreshold) / (1.0 - uThreshold);
-                    vec3 irid = spectral(shift + uTime * ${CONFIG.iridSpeed.toFixed(1)} + vSpike);
-                    color = mix(color, irid, shift);
+                    color = mix(color, spectral(shift + uTime * 0.3 + vSpike), shift);
                 }
-
-                // Low-Poly Spike Highlight
                 if (vSpike > 0.1) {
-                    float spikeFace = dot(fNormal, vec3(0.0, 1.0, 0.5));
-                    if(spikeFace > 0.4) {
-                        color = mix(color, spectral(vSpike + uTime), vSpike);
-                    }
+                    float shine = dot(fNormal, vec3(0, 1, 0.5));
+                    if(shine > 0.4) color = mix(color, spectral(vSpike + uTime), vSpike);
                 }
-
                 gl_FragColor = vec4(color, 1.0);
             }
         `
@@ -169,51 +141,66 @@
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), material);
     scene.add(mesh);
 
-    // --- MOBILE / GYRO HANDLER ---
-    const overlay = document.getElementById('gyro-overlay');
-    const statusText = document.getElementById('status');
+    // --- HYBRID LOGIK ---
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const modeLabel = document.getElementById('device-mode');
+    const sensorLabel = document.getElementById('sensor-status');
+    const overlay = document.getElementById('mobile-overlay');
 
-    document.getElementById('gyro-button').addEventListener('click', async () => {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            try {
-                const permission = await DeviceOrientationEvent.requestPermission();
-                if (permission === 'granted') {
-                    window.addEventListener('deviceorientation', (e) => {
-                        const x = (e.gamma / 45) * CONFIG.gyroSensitivity;
-                        const y = ((e.beta - 45) / 45) * CONFIG.gyroSensitivity;
-                        material.uniforms.uMouse.value.set(
-                            THREE.MathUtils.clamp(x, -1, 1),
-                            THREE.MathUtils.clamp(-y, -1, 1)
-                        );
-                    });
-                    statusText.innerText = 'GYRO_ACTIVE';
-                }
-            } catch (e) { console.error(e); }
-        } else {
-            // Android / Desktop Fallback
+    if (isMobile) {
+        modeLabel.innerText = "MOBILE";
+        overlay.style.display = "flex";
+
+        // 1. Touch ist SOFORT aktiv
+        window.addEventListener('touchmove', (e) => {
+            const t = e.touches[0];
+            targetInput.x = (t.clientX / window.innerWidth) * 2 - 1;
+            targetInput.y = (t.clientY / window.innerHeight) * 2 - 1;
+            if(!gyroEnabled) sensorLabel.innerText = "TOUCH_ACTIVE";
+        }, { passive: false });
+
+        // 2. Gyro erst nach Button-Klick
+        document.getElementById('start-btn').addEventListener('click', async () => {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const permission = await DeviceOrientationEvent.requestPermission();
+                    if (permission === 'granted') activateGyro();
+                } catch (e) { console.error(e); }
+            } else {
+                activateGyro();
+            }
+        });
+
+        const activateGyro = () => {
+            gyroEnabled = true;
+            sensorLabel.innerText = "TOUCH + GYRO";
+            overlay.style.opacity = "0";
+            setTimeout(() => overlay.remove(), 500);
+            
             window.addEventListener('deviceorientation', (e) => {
-                const x = (e.gamma / 45) * CONFIG.gyroSensitivity;
-                const y = ((e.beta - 45) / 45) * CONFIG.gyroSensitivity;
-                material.uniforms.uMouse.value.set(THREE.MathUtils.clamp(x, -1, 1), THREE.MathUtils.clamp(-y, -1, 1));
+                // Wir addieren Gyro-Daten zum aktuellen Target oder setzen sie als Basis
+                // (e.gamma/40) ist die Neigung
+                targetInput.x = (e.gamma / 40) * CONFIG.gyroSensitivity;
+                targetInput.y = ((e.beta - 45) / 40) * CONFIG.gyroSensitivity;
             });
-            statusText.innerText = 'SENSOR_ACTIVE';
-        }
-        
-        overlay.style.opacity = '0';
-        setTimeout(() => overlay.remove(), 500);
-        material.uniforms.uIntensity.value = 1.0;
-    });
-
-    // Maus-Fallback
-    window.addEventListener('mousemove', (e) => {
-        if (statusText.innerText === 'WAITING') {
-            material.uniforms.uMouse.value.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-            material.uniforms.uIntensity.value = 1.0;
-        }
-    });
+        };
+    } else {
+        modeLabel.innerText = "DESKTOP";
+        sensorLabel.innerText = "MOUSE_ACTIVE";
+        window.addEventListener('mousemove', (e) => {
+            targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
+            targetInput.y = (e.clientY / window.innerHeight) * 2 - 1;
+        });
+    }
 
     function animate() {
         requestAnimationFrame(animate);
+        
+        // Lerp sorgt für smoothe Übergänge zwischen Touch-Punkten und Gyro-Neigung
+        currentInput.x += (targetInput.x - currentInput.x) * CONFIG.lerpFactor;
+        currentInput.y += (targetInput.y - currentInput.y) * CONFIG.lerpFactor;
+        
+        material.uniforms.uMouse.value.set(currentInput.x, -currentInput.y);
         material.uniforms.uTime.value += 0.02;
         mesh.rotation.y += CONFIG.rotationSpeed;
         material.uniforms.uRotationY.value = mesh.rotation.y;
