@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Sticky Main Spike & Fractal Aura</title>
+    <title>Sticky Spike - Final Fix</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; }
@@ -12,21 +12,15 @@
             background: rgba(0, 20, 30, 0.8); padding: 12px; border: 1px solid #00f0ff;
             pointer-events: none; z-index: 100;
         }
-        #mouse-tag {
-            position: fixed; pointer-events: none; color: #00f0ff;
-            font-family: 'Courier New', monospace; font-size: 9px;
-            text-shadow: 0 0 5px #00f0ff; z-index: 1000;
-        }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    SYSTEM: STICKY_DOCKING<br>
-    MAIN_SPIKE: ATTACHED<br>
-    FRACTALS: ACTIVE
+    SYSTEM: ROTATION_INDEPENDENT<br>
+    SPIKE_GRADIENT: ACTIVE<br>
+    DOCKING: LOCAL_SPACE
 </div>
-<div id="mouse-tag">X: 0.00 | Y: 0.00</div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -35,17 +29,12 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // ==========================================
-    // CONFIG: PARAMETER FÜR DOCKING & FRACTALS
-    // ==========================================
     const CONFIG = {
         radius: 2.5,
-        detail: 35,             // Höher für präzises Docking
-        mainSpikeSharpness: 30.0, // Höher = dünnerer Hauptspike
-        fractalFreq: 14.0,      
-        maxReach: 1.8,          // Wie weit die Nebenspikes gehen
-        dockingStrength: 5.5,   // Wie weit der Hauptspike zum Cursor "schießt"
-        rotationSpeed: 0.003
+        detail: 40,
+        mainSharpness: 35.0,
+        maxReach: 1.6,
+        rotationSpeed: 0.005
     };
 
     const scene = new THREE.Scene();
@@ -59,71 +48,68 @@
     const material = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
-            uMouse: { value: new THREE.Vector2(0, 0) },
-            uMouseWorld: { value: new THREE.Vector3(0, 0, 0) },
+            uLocalMouse: { value: new THREE.Vector3(0, 0, 0) },
             uIntensity: { value: 0 }
         },
         vertexShader: `
             varying vec3 vNormal;
             varying vec3 vViewDir;
-            varying vec3 vWorldPos;
+            varying float vSpikeHeight;
             uniform float uTime;
-            uniform vec2 uMouse;
-            uniform vec3 uMouseWorld;
+            uniform vec3 uLocalMouse;
             uniform float uIntensity;
 
             void main() {
                 vNormal = normalize(normalMatrix * normal);
-                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                vWorldPos = worldPos.xyz;
-                vViewDir = normalize(cameraPosition - vWorldPos);
+                
+                // 1. STICKY LOGIK IM LOCAL SPACE (Verhindert Gegenläufigkeit)
+                vec3 localDirToMouse = normalize(uLocalMouse);
+                float alignment = max(0.0, dot(normalize(position), localDirToMouse));
+                
+                // Hauptspike Kraftfeld
+                float mainSpike = pow(alignment, ${CONFIG.mainSharpness.toFixed(1)});
+                
+                // Fraktale für Textur
+                float noise = sin(position.x * 12.0 + uTime) * cos(position.y * 12.0);
+                float fractal = pow(max(0.0, noise), 10.0) * 0.5;
 
-                // 1. HAUPTSPIKE LOGIK (STICKY DOCKING)
-                // Wir messen die Ausrichtung zum Cursor im Raum
-                vec3 dirToMouse = normalize(uMouseWorld - worldPos.xyz);
-                float alignment = max(0.0, dot(normalize(position), normalize(uMouseWorld)));
-                
-                // Hyperbel-Zuspitzung für den Hauptspike
-                float mainSpike = pow(alignment, ${CONFIG.mainSpikeSharpness.toFixed(1)});
-                vec3 dockingOffset = (uMouseWorld - worldPos.xyz) * mainSpike * uIntensity;
+                float totalDistortion = (mainSpike + fractal) * uIntensity * ${CONFIG.maxReach.toFixed(1)};
+                vSpikeHeight = totalDistortion; // Für den Farbverlauf im Fragment Shader
 
-                // 2. FRAKTALE NEBENSPIKES
-                vec4 screenPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                vec2 ndc = screenPos.xy / screenPos.w;
-                float distNDC = distance(ndc, uMouse);
+                vec3 newPos = position + normalize(position) * totalDistortion;
                 
-                float f = sin(position.x * ${CONFIG.fractalFreq.toFixed(1)} + uTime) * 
-                          cos(position.y * ${CONFIG.fractalFreq.toFixed(1)} + uTime);
+                vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
+                vViewDir = normalize(cameraPosition - worldPos.xyz);
                 
-                float fractalMask = smoothstep(0.7, 0.0, distNDC);
-                float fractalSpikes = pow(max(0.0, f), 10.0) * fractalMask * uIntensity * ${CONFIG.maxReach.toFixed(1)};
-
-                // Kombination: Hauptspike zieht zum Cursor, Fraktale wachsen entlang der Normalen
-                vec3 newPos = position + dockingOffset + (normal * fractalSpikes);
-                
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
         fragmentShader: `
+            varying vec3 vNormal;
             varying vec3 vViewDir;
-            varying vec3 vWorldPos;
+            varying float vSpikeHeight;
             uniform float uTime;
 
             void main() {
-                vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-                float cameraFacing = dot(fNormal, vViewDir);
+                // Low-Poly Shading
+                float faceAngle = dot(vNormal, vViewDir);
                 
-                vec3 color;
-                // Iridiszenz auf den Flächen, die zur Kamera schauen (25 Grad Check)
-                if (cameraFacing > 0.906) {
-                    float hue = sin(uTime * 3.0 + cameraFacing * 10.0) * 0.5 + 0.5;
-                    color = mix(vec3(0.0, 1.0, 1.0), vec3(0.6, 0.0, 1.0), hue);
-                    color = mix(color, vec3(1.0), smoothstep(0.95, 1.0, cameraFacing)); // Glanz-Spitze
+                // FARBVERLAUF LOGIK:
+                // Mix aus Spike-Höhe (Basis zu Spitze) und Kamera-Winkel (Iridiszenz)
+                vec3 baseColor = vec3(step(0.1, sin(gl_FragCoord.y * 0.1 + uTime)));
+                
+                // Verlauf von Cyan (Basis) zu Magenta/Weiß (Spitze)
+                vec3 spikeColor = mix(vec3(0.0, 0.8, 1.0), vec3(1.0, 0.0, 0.5), vSpikeHeight * 0.5);
+                
+                // 25 Grad Iridiszenz-Check
+                vec3 finalColor;
+                if(faceAngle > 0.906) {
+                    finalColor = mix(spikeColor, vec3(1.0), vSpikeHeight);
                 } else {
-                    float stripes = step(0.1, sin(vWorldPos.y * 15.0 + uTime * 2.0));
-                    color = vec3(stripes);
+                    finalColor = baseColor;
                 }
-                gl_FragColor = vec4(color, 1.0);
+
+                gl_FragColor = vec4(finalColor, 1.0);
             }
         `
     });
@@ -131,29 +117,23 @@
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), material);
     scene.add(mesh);
 
-    // --- TRACKING & DOCKING LOGIC ---
+    // --- MOUSE TO LOCAL SPACE LOGIK ---
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // Mathematische Ebene für das Sticky-Ziel
-    const intersectPoint = new THREE.Vector3();
-    const mouseTag = document.getElementById('mouse-tag');
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    const worldIntersect = new THREE.Vector3();
 
     window.addEventListener('mousemove', (e) => {
         mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-        
-        // Raycast für die Sticky-Position im 3D Raum
-        raycaster.setFromCamera(mouse, camera);
-        raycaster.ray.intersectPlane(plane, intersectPoint);
-        
-        material.uniforms.uMouse.value.copy(mouse);
-        material.uniforms.uMouseWorld.value.copy(intersectPoint);
-        material.uniforms.uIntensity.value = 1.0;
 
-        // Cursor Label
-        mouseTag.style.left = (e.clientX + 15) + 'px';
-        mouseTag.style.top = (e.clientY + 15) + 'px';
-        mouseTag.innerText = `DOCKING_X: ${mouse.x.toFixed(2)} | Y: ${mouse.y.toFixed(2)}`;
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(plane, worldIntersect);
+
+        // WICHTIG: Welt-Koordinate in lokale Koordinate des rotierenden Meshs umwandeln
+        const localPoint = mesh.worldToLocal(worldIntersect.clone());
+        material.uniforms.uLocalMouse.value.copy(localPoint);
+        material.uniforms.uIntensity.value = 1.0;
     });
 
     function animate() {
