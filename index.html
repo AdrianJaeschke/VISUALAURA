@@ -136,7 +136,7 @@
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
-        fragmentShader: `
+       fragmentShader: `
             varying vec3 vNormal;
             varying vec3 vWorldPos;
             varying float vSpike;
@@ -144,33 +144,39 @@
             uniform float uThreshold;
 
             vec3 spectral(float t) {
+                // Eine weichere Farbpalette
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
+                // Low Poly Look durch Face-Normals behalten
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
                 float cameraFacing = dot(fNormal, viewDir);
                 
+                // 1. Smoothes Zebra-Muster
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
-                float zebra = smoothstep(-0.15, 0.15, stripePattern);
+                float zebra = smoothstep(-0.5, 0.5, stripePattern); // Sehr weiche Kanten
                 
-                vec3 color = vec3(zebra);
-                float iridMask = smoothstep(uThreshold - 0.1, uThreshold + 0.1, cameraFacing);
+                // 2. Kontinuierlicher Farbverlauf (keine harten Masken mehr)
+                // Wir berechnen die Farbe basierend auf dem Winkel und der Zeit
+                float colorShift = cameraFacing * 0.5 + uTime * 0.2 + vSpike * 0.5;
+                vec3 iridColor = spectral(colorShift);
                 
-                if (iridMask > 0.0) {
-                    float shift = (cameraFacing - uThreshold) / (1.0 - uThreshold);
-                    vec3 iridColor = spectral(shift + uTime * 0.3 + vSpike);
-                    color = mix(color, iridColor, iridMask);
-                }
-
-                if (vSpike > 0.1) {
+                // 3. Mischen: Wir nutzen cameraFacing als weichen Faktor für die Intensität
+                float intensity = smoothstep(uThreshold - 0.2, uThreshold + 0.4, cameraFacing);
+                
+                // Finales Blending für maximale Sanftheit
+                vec3 baseColor = mix(vec3(zebra * 0.2), iridColor, intensity);
+                
+                // Glanz auf den Spitzen (ebenfalls weich)
+                if (vSpike > 0.05) {
                     float shine = dot(fNormal, vec3(0, 1, 0.5));
-                    float spikeHighlight = smoothstep(0.4, 0.7, shine);
-                    color = mix(color, spectral(vSpike + uTime), spikeHighlight * vSpike);
+                    float softSpike = smoothstep(0.0, 1.0, vSpike);
+                    baseColor = mix(baseColor, spectral(softSpike + uTime), softSpike * intensity * 0.5);
                 }
                 
-                gl_FragColor = vec4(color, 1.0);
+                gl_FragColor = vec4(baseColor, 1.0);
             }
         `
     });
