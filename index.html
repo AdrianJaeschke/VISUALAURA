@@ -144,43 +144,39 @@
             uniform float uThreshold;
 
             vec3 spectral(float t) {
+                // Satter, weicher Spektral-Verlauf
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
-                // 1. Geometrie
+                // 1. Geometrie (Harte Kanten für Low Poly)
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
                 float cameraFacing = dot(fNormal, viewDir);
                 
-                // 2. DAS ZEBRA (Basis-Muster)
+                // 2. DAS ZEBRA (Nur S/W)
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
-                float zebra = smoothstep(-0.02, 0.02, stripePattern); 
-                vec3 zebraColor = vec3(zebra); // Schwarz oder Weiß
+                float zebra = smoothstep(-0.01, 0.01, stripePattern); 
+                vec3 zebraColor = vec3(zebra);
                 
-                // 3. DER GRADIENT (Farbe)
-                float colorShift = cameraFacing * 0.4 + uTime * 0.2 + vSpike * 0.5;
+                // 3. DER VERLAUF (Nur Farbe)
+                float colorShift = cameraFacing * 0.5 + uTime * 0.2 + vSpike * 0.4;
                 vec3 rainbow = spectral(colorShift);
                 
-                // 4. DIE ÜBERGANGS-MASKE (Wo ist der Gradient?)
-                // Wir machen den Übergang sehr weich
-                float iridMask = smoothstep(uThreshold - 0.3, uThreshold + 0.4, cameraFacing);
+                // 4. DER SCHALTER (Sichtwinkel-Abhängig)
+                // Threshold steuert, ab welchem Winkel das Zebra verschwindet
+                // Ein kleiner Bereich bei smoothstep (0.05) sorgt für eine klare Kante
+                float switcher = smoothstep(uThreshold - 0.05, uThreshold + 0.05, cameraFacing);
                 
-                // 5. DIE LOGIK: Zebra vs. Gradient
-                // Wir blenden das Zebra-Muster aus (mix zu 0.0), je stärker die Maske ist
-                // Und blenden gleichzeitig den Regenbogen ein.
-                
-                // Hier wird das Zebra "geschluckt", wenn die Maske aktiv ist:
-                vec3 finalZebra = mix(zebraColor, vec3(0.0), iridMask); 
-                
-                // Jetzt fügen wir den Gradienten dort hinzu, wo das Zebra weg ist:
-                vec3 color = finalZebra + (rainbow * iridMask);
+                // 5. STRIKTE TRENNUNG
+                // Wenn switcher 0 ist -> Zebra
+                // Wenn switcher 1 ist -> Verlauf
+                vec3 color = mix(zebraColor, rainbow, switcher);
 
-                // 6. SPIKE HIGHLIGHTS (Immer sichtbar für Tiefe)
+                // 6. SPIKE GLANZ (Optional: Additiver Glanz auf Spitzen)
                 if (vSpike > 0.05) {
                     float shine = dot(fNormal, vec3(0, 1, 0.5));
-                    float spikeEffect = smoothstep(0.0, 0.8, vSpike);
-                    color += spectral(vSpike + uTime) * spikeEffect * 0.4;
+                    color += spectral(vSpike + uTime) * vSpike * switcher * 0.3;
                 }
                 
                 gl_FragColor = vec4(color, 1.0);
