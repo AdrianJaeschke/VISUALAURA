@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandelbrot Low-Poly Sculpture</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #050505; 
+            touch-action: none; /* Verhindert Scrolling auf Mobile */
+        }
+        canvas { display: block; }
+
+        /* Dezente Dialogbox */
+        #status-box {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px 25px;
+            color: #00f0ff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-align: center;
+            transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .error { 
+            color: #ff0055 !important; 
+            border-color: rgba(255, 0, 85, 0.3) !important; 
+            background: rgba(255, 0, 85, 0.05) !important;
+        }
+
+        /* Pulsierender Hinweis bei Interaktionsbedarf */
+        .interactive {
+            pointer-events: auto !important;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.1) !important;
+            border-color: #00f0ff !important;
+        }
+    </style>
+</head>
+<body>
+
+<div id="status-box">Initialisiere System...</div>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+
+    // --- Variablen & Setup ---
+    let targetRotX = -Math.PI / 4;
+    let targetRotY = 0;
+    const statusBox = document.getElementById('status-box');
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // --- Geometrie (Low Poly Fokus) ---
+    // 100x100 Segmente für genug Detail, flatShading macht den Rest
+    const geometry = new THREE.PlaneGeometry(12, 12, 100, 100);
+    
+    // Iridisierendes Material-Setup
+    const material = new THREE.MeshPhongMaterial({
+        color: 0x222222,
+        specular: 0x00f0ff,
+        shininess: 80,
+        flatShading: true, // Erzeugt den harten Dreiecks-Look
+        side: THREE.DoubleSide
+    });
+
+    const sculpture = new THREE.Mesh(geometry, material);
+    sculpture.rotation.x = targetRotX;
+    scene.add(sculpture);
+
+    // Lichter (Erzeugen den Farbeffekt auf den Flächen)
+    const light1 = new THREE.PointLight(0x00ffff, 150); // Cyan
+    light1.position.set(5, 5, 8);
+    scene.add(light1);
+
+    const light2 = new THREE.PointLight(0xff00ff, 150); // Magenta
+    light2.position.set(-5, -5, 8);
+    scene.add(light2);
+
+    const ambientLight = new THREE.AmbientLight(0x111111);
+    scene.add(ambientLight);
+
+    camera.position.z = 10;
+
+    // --- Mandelbrot Deformation ---
+    function updateMandelbrot() {
+        const pos = geometry.attributes.position;
+        const zoom = 2.2;
+        const offX = -0.5;
+
+        for (let i = 0; i < pos.count; i++) {
+            let x0 = (pos.getX(i) * (1/zoom)) + offX;
+            let y0 = (pos.getY(i) * (1/zoom));
+            
+            let x = 0, y = 0, iter = 0, maxIter = 25;
+            while (x*x + y*y <= 4 && iter < maxIter) {
+                let xtemp = x*x - y*y + x0;
+                y = 2*x*y + y0;
+                x = xtemp;
+                iter++;
+            }
+            // Z-Achse verformen
+            pos.setZ(i, iter * 0.2);
+        }
+        pos.needsUpdate = true;
+        geometry.computeVertexNormals();
+    }
+    updateMandelbrot();
+
+    // --- UI & Sensor Logik ---
+    function log(msg, isError = false, active = false) {
+        statusBox.innerHTML = msg;
+        if (isError) statusBox.classList.add('error');
+        else statusBox.classList.remove('error');
+        
+        if (active) statusBox.classList.add('interactive');
+        else statusBox.classList.remove('interactive');
+
+        statusBox.style.opacity = "1";
+        if (!active && !isError) {
+            setTimeout(() => statusBox.style.opacity = "0.4", 4000);
+        }
+    }
+
+    const activateGyro = () => {
+        window.addEventListener('deviceorientation', (e) => {
+            if (e.beta !== null) {
+                // Skalierung der Werte für angenehme Rotation
+                targetRotX = (e.beta / 180 * Math.PI) - Math.PI / 4;
+                targetRotY = (e.gamma / 90 * Math.PI);
+            }
+        });
+        log("Sensoren aktiv");
+    };
+
+    const initSensors = () => {
+        const isIOS = typeof DeviceOrientationEvent !== 'undefined' && 
+                      typeof DeviceOrientationEvent.requestPermission === 'function';
+
+        if (isIOS) {
+            log("Tippen für Sensor-Aktivierung", false, true);
+            const startHandler = () => {
+                DeviceOrientationEvent.requestPermission()
+                    .then(state => {
+                        if (state === 'granted') activateGyro();
+                        else log("Zugriff verweigert", true);
+                    })
+                    .catch(e => log("Fehler: " + e.message, true));
+                window.removeEventListener('click', startHandler);
+            };
+            window.addEventListener('click', startHandler);
+        } else if (window.DeviceOrientationEvent) {
+            activateGyro();
+            log("System bereit");
+        } else {
+            log("Kein Gyro - Nutze Maus");
+        }
+    };
+
+    // Maus-Steuerung Fallback
+    window.addEventListener('mousemove', (e) => {
+        if (window.innerWidth > 768) { // Nur auf Desktop
+            targetRotY = (e.clientX / window.innerWidth - 0.5) * 2;
+            targetRotX = (e.clientY / window.innerHeight - 0.5) * 2 - Math.PI / 4;
+        }
+    });
+
+    // --- Animation Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        // Sanfte Interpolation der Rotation
+        sculpture.rotation.x += (targetRotX - sculpture.rotation.x) * 0.08;
+        sculpture.rotation.y += (targetRotY - sculpture.rotation.y) * 0.08;
+
+        // Iridisierende Lichtbewegung
+        const t = Date.now() * 0.001;
+        light1.position.x = Math.sin(t) * 7;
+        light1.position.z = 5 + Math.cos(t) * 3;
+        light2.position.y = Math.cos(t * 1.2) * 7;
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start
+    initSensors();
+    animate();
+
+</script>
+</body>
+</html>
