@@ -2,25 +2,13 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Hybrid Spike Sphere - Boldonse Edition</title>
+    <title>Minimal Hybrid Spike Sphere</title>
     
-    <!-- Deine spezifischen Google Fonts Links -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
 
     <style>
-        /* Deine exakte CSS Vorgabe */
-        .boldonse-regular {
-            font-family: "Boldonse", system-ui;
-            font-weight: 400;
-            font-style: normal;
-        }
-
-        :root {
-            --accent: #ffffff;
-        }
-
         body, html { 
             margin: 0; 
             padding: 0; 
@@ -30,68 +18,61 @@
         
         canvas { display: block; }
         
-        /* UI Design mit deiner Schriftart */
+        /* Typo ohne Hintergrund direkt auf dem Bild */
         #ui {
             position: fixed; 
-            top: 20px; 
-            left: 20px; 
-            color: var(--accent); 
-            font-size: 14px;
-            background: rgba(0, 15, 25, 0.8); 
-            padding: 15px; 
-            border: 1px solid var(--accent);
+            top: 30px; 
+            left: 30px; 
+            color: #00f0ff; 
+            font-family: "Boldonse", system-ui; 
+            font-size: 13px;
             pointer-events: none; 
-            z-index: 100;
+            z-index: 100; 
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
+            line-height: 1.6;
+            /* Subtiler Glow für Lesbarkeit auf hellem Grund */
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
         }
 
-        /* Mobile Overlay */
+        /* Mobile Overlay ohne Blur/Hintergrund für maximale Transparenz */
         #mobile-overlay {
             position: fixed; 
             inset: 0; 
-            background: rgba(0,0,0,0.5); 
             display: none; 
             flex-direction: column; 
             justify-content: center; 
             align-items: center;
-            z-index: 1000; 
-            transition: opacity 0.5s ease;
-            backdrop-filter: blur(4px);
+            z-index: 1000;
         }
 
         #start-btn {
-            padding: 18px 35px; 
-            font-size: 40px; 
+            padding: 15px 30px; 
+            background: transparent; 
+            border: 1px solid #00f0ff;
+            color: #00f0ff; 
+            font-family: "Boldonse", system-ui;
+            font-size: 16px; 
             cursor: pointer; 
             text-transform: uppercase;
-            letter-spacing: 2px;
-        
+            letter-spacing: 4px;
+            transition: all 0.3s ease;
         }
 
-        .hint {
-            color: var(--accent); 
-            font-size: 11px; 
-            margin-top: 15px; 
-            opacity: 0.8;
-        }
-
-        /* Klasse auf alle UI Elemente anwenden */
-        #ui, #start-btn, .hint {
-            font-family: "Boldonse", system-ui;
-            font-weight: 400;
+        #start-btn:active {
+            background: rgba(0, 240, 255, 0.2);
         }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    System: <span id="device-mode">Detecting</span><br>
-    Sensor: <span id="sensor-status">Touch Active</span>
+    <span id="device-mode">System: Detecting</span><br>
+    <span id="sensor-status">Sensor: Touch Active</span>
 </div>
 
 <div id="mobile-overlay">
-    <button id="start-btn" class="boldonse-regular">KLICKEN UND HANDY BEWEGEN</button>
+    <button id="start-btn">Activate Motion</button>
 </div>
 
 <script type="importmap">
@@ -101,42 +82,39 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // CONFIG AUS DER VORIGEN LISTE
     const CONFIG = {
         radius: 2.5,
-        detail: 17,
-        spikeSharpness: 40.0,
+        detail: 20,
+        spikeSharpness: 25.0,
         maxReach: 0.4,
         stripeDensity: 15.0,
-        viewAngle: 45,
+        viewAngle: 25,
         rotationSpeed: 0.005,
         gyroSensitivity: 2.2,
-        lerpFactor: 0.1 
+        lerpFactor: 0.05 
     };
 
     const angleThreshold = Math.cos(CONFIG.viewAngle * (Math.PI / 180));
     let targetInput = { x: 0, y: 0 };
     let currentInput = { x: 0, y: 0 };
 
-    // --- THREE.JS SETUP ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 8;
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
     const material = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uIntensity: { value: 1.0 }, 
+            uIntensity: { value: 1.0 },
             uThreshold: { value: angleThreshold }
         },
         vertexShader: `
             varying vec3 vNormal;
-            varying vec3 vViewDir;
             varying vec3 vWorldPos;
             varying float vSpike;
             uniform float uTime;
@@ -155,13 +133,11 @@
                 vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
                 vWorldPos = worldPos.xyz;
                 vNormal = normalize(normalMatrix * normal);
-                vViewDir = normalize(cameraPosition - vWorldPos);
                 gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
         fragmentShader: `
             varying vec3 vNormal;
-            varying vec3 vViewDir;
             varying vec3 vWorldPos;
             varying float vSpike;
             uniform float uTime;
@@ -173,19 +149,27 @@
 
             void main() {
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-                float cameraFacing = dot(fNormal, vViewDir);
+                vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                float cameraFacing = dot(fNormal, viewDir);
+                
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
-                float zebra = step(0.0, stripePattern);
+                float zebra = smoothstep(-0.15, 0.15, stripePattern);
+                
                 vec3 color = vec3(zebra);
-
-                if (cameraFacing > uThreshold) {
+                float iridMask = smoothstep(uThreshold - 0.1, uThreshold + 0.1, cameraFacing);
+                
+                if (iridMask > 0.0) {
                     float shift = (cameraFacing - uThreshold) / (1.0 - uThreshold);
-                    color = mix(color, spectral(shift + uTime * 0.3 + vSpike), shift);
+                    vec3 iridColor = spectral(shift + uTime * 0.3 + vSpike);
+                    color = mix(color, iridColor, iridMask);
                 }
+
                 if (vSpike > 0.1) {
                     float shine = dot(fNormal, vec3(0, 1, 0.5));
-                    if(shine > 0.4) color = mix(color, spectral(vSpike + uTime), vSpike);
+                    float spikeHighlight = smoothstep(0.4, 0.7, shine);
+                    color = mix(color, spectral(vSpike + uTime), spikeHighlight * vSpike);
                 }
+                
                 gl_FragColor = vec4(color, 1.0);
             }
         `
@@ -194,48 +178,37 @@
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), material);
     scene.add(mesh);
 
-    // --- DEVICE LOGIC ---
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const modeLabel = document.getElementById('device-mode');
-    const sensorLabel = document.getElementById('sensor-status');
     const overlay = document.getElementById('mobile-overlay');
 
     if (isMobile) {
-        modeLabel.innerText = "Mobile Unit";
+        document.getElementById('device-mode').innerText = "System: Mobile";
         overlay.style.display = "flex";
 
-        // Touch ist SOFORT aktiv (Overlay ist semi-transparent)
-        const updateTouch = (e) => {
+        window.addEventListener('touchmove', (e) => {
             const t = e.touches[0];
             targetInput.x = (t.clientX / window.innerWidth) * 2 - 1;
             targetInput.y = (t.clientY / window.innerHeight) * 2 - 1;
-        };
-        window.addEventListener('touchstart', updateTouch);
-        window.addEventListener('touchmove', updateTouch, { passive: false });
+        }, { passive: false });
 
-        // Gyroscope Permission & Start
         document.getElementById('start-btn').addEventListener('click', async () => {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
                 const res = await DeviceOrientationEvent.requestPermission();
-                if (res === 'granted') activateGyro();
-            } else {
-                activateGyro();
-            }
+                if (res === 'granted') startGyro();
+            } else { startGyro(); }
         });
 
-        function activateGyro() {
-            sensorLabel.innerText = "GYRO ACTIVE";
-            overlay.style.opacity = "0";
-            setTimeout(() => overlay.remove(), 500);
+        function startGyro() {
+            document.getElementById('sensor-status').innerText = "Sensor: Gyro + Touch";
+            overlay.remove();
             window.addEventListener('deviceorientation', (e) => {
                 targetInput.x = (e.gamma / 40) * CONFIG.gyroSensitivity;
                 targetInput.y = ((e.beta - 45) / 40) * CONFIG.gyroSensitivity;
             });
         }
     } else {
-        // Desktop Modus
-        modeLabel.innerText = "Desktop Station";
-        sensorLabel.innerText = "Mouse Tracking";
+        document.getElementById('device-mode').innerText = "System: Desktop";
+        document.getElementById('sensor-status').innerText = "Sensor: Mouse Tracking";
         window.addEventListener('mousemove', (e) => {
             targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
             targetInput.y = (e.clientY / window.innerHeight) * 2 - 1;
