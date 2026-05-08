@@ -144,39 +144,48 @@
             uniform float uThreshold;
 
             vec3 spectral(float t) {
-                // Eine weichere Farbpalette
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
-                // Low Poly Look durch Face-Normals behalten
+                // 1. Geometrie & Sichtwinkel
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
                 float cameraFacing = dot(fNormal, viewDir);
                 
-                // 1. Smoothes Zebra-Muster
+                // 2. DAS ZEBRA (Strikt Schwarz-Weiß)
+                // Wir nutzen ein schärferes smoothstep für klare Streifen
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
-                float zebra = smoothstep(-0.5, 0.5, stripePattern); // Sehr weiche Kanten
+                float zebra = smoothstep(-0.05, 0.05, stripePattern); 
                 
-                // 2. Kontinuierlicher Farbverlauf (keine harten Masken mehr)
-                // Wir berechnen die Farbe basierend auf dem Winkel und der Zeit
-                float colorShift = cameraFacing * 0.5 + uTime * 0.2 + vSpike * 0.5;
-                vec3 iridColor = spectral(colorShift);
+                // 3. DIE FARBE (Butterweich)
+                // Wir berechnen die Iridiszenz unabhängig
+                float colorShift = cameraFacing * 0.4 + uTime * 0.2 + vSpike * 0.3;
+                vec3 rainbow = spectral(colorShift);
                 
-                // 3. Mischen: Wir nutzen cameraFacing als weichen Faktor für die Intensität
-                float intensity = smoothstep(uThreshold - 0.2, uThreshold + 0.4, cameraFacing);
+                // 4. MASKE FÜR DIE FARBE
+                // Nur dort, wo die Kugel zur Kamera zeigt, leuchtet sie
+                float iridMask = smoothstep(uThreshold - 0.2, uThreshold + 0.3, cameraFacing);
                 
-                // Finales Blending für maximale Sanftheit
-                vec3 baseColor = mix(vec3(zebra * 0.2), iridColor, intensity);
+                // 5. KOMPOSITION
+                // Wir nehmen das Zebra (0 oder 1) und multiplizieren es mit der Farbe,
+                // aber lassen das Schwarz echt Schwarz (0 * Farbe = 0).
+                vec3 color = mix(vec3(0.0), rainbow, zebra);
                 
-                // Glanz auf den Spitzen (ebenfalls weich)
+                // Die Intensität der Farbe wird durch den Winkel gesteuert
+                // (Damit die Rückseite/Ränder dunkel bleiben)
+                color *= iridMask;
+
+                // 6. SPIKE HIGHLIGHTS
                 if (vSpike > 0.05) {
                     float shine = dot(fNormal, vec3(0, 1, 0.5));
-                    float softSpike = smoothstep(0.0, 1.0, vSpike);
-                    baseColor = mix(baseColor, spectral(softSpike + uTime), softSpike * intensity * 0.5);
+                    float spikeIntensity = smoothstep(0.0, 1.0, vSpike) * iridMask;
+                    vec3 spikeColor = spectral(vSpike + uTime);
+                    // Additives Leuchten auf den Spitzen, das das Zebra überlagert
+                    color += spikeColor * spikeIntensity * 0.4;
                 }
                 
-                gl_FragColor = vec4(baseColor, 1.0);
+                gl_FragColor = vec4(color, 1.0);
             }
         `
     });
