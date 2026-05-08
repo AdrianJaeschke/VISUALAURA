@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hyperbolic Needle Sphere</title>
+    <title>Linear Needle Spike</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; cursor: crosshair !important; }
         #ui {
             position: fixed; top: 20px; left: 20px; color: #00f0ff; 
             font-family: monospace; pointer-events: none;
-            background: rgba(0, 20, 30, 0.8); padding: 12px; border-radius: 4px; border: 1px solid #00f0ff;
-            font-size: 10px; letter-spacing: 1px;
+            background: rgba(0, 10, 20, 0.9); padding: 10px; border: 1px solid #00f0ff;
+            font-size: 11px; text-transform: uppercase;
         }
     </style>
 </head>
 <body>
-<div id="ui">SYSTEM: HYPERBOLIC_NEEDLE // RADIAL_NOISE: ON</div>
+<div id="ui">Mode: Linear_Vector_Spike // Sharpness: Ultra</div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -26,78 +26,59 @@
     import * as THREE from 'three';
 
     // ==========================================
-    // CONFIG: TUNING DER NADELN
+    // TUNING PARAMETERS
     // ==========================================
     const CONFIG = {
-        sphereRadius: 2.5,
-        detail: 300,             // Sehr hoch für extrem feine Nadelspitzen
-        activationRadius: 0.9, 
-        needleSharpness: 400.0,  // Höher = dünnere Hyperbel-Spitze
-        influenceRange: 4.0,    // Streuung der Neben-Spikes
-        rotationSpeed: 0.002
+        radius: 2.5,
+        detail: 70,             // Maximale Auflösung für die dünne Linie
+        activationRange: 0.95,
+        lineSharpness: 25.0,    // Höher = dünnere "Linien"-Optik
+        maxReach: 12.0,         // Wie weit die Nadel schießen kann
+        rotationSpeed: 0.001
     };
 
     const vertexShader = `
         varying vec3 vNormal;
-        varying vec3 vViewPosition;
         varying vec3 vWorldPosition;
+        varying vec3 vViewPosition;
         uniform float uTime;
         uniform float uIntensity;
         uniform vec2 uMouse;
 
-        // Simplex Noise für die radiale Aufbrechung der Neben-Spikes
-        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
-        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-        float snoise(vec3 v) {
-            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-            vec3 i  = floor(v + dot(v, C.yyy));
-            vec3 x0 = v - i + dot(i, C.xxx);
-            vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g;
-            vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
-            vec3 x1 = x0 - i1 + C.xxx; vec3 x2 = x0 - i2 + C.yyy; vec3 x3 = x0 - D.yyy;
-            i = mod289(i);
-            vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-            vec4 j = p - 49.0 * floor(p * 0.02040816326);
-            vec4 x_ = floor(j * 0.14285714285); vec4 y_ = floor(j - 7.0 * x_);
-            vec4 x = x_ * 0.14285714285 + 0.07142857142; vec4 y = y_ * 0.14285714285 + 0.07142857142;
-            vec4 h = 1.0 - abs(x) - abs(y);
-            vec4 b0 = vec4(x.xy, y.xy); vec4 b1 = vec4(x.zw, y.zw);
-            vec4 s0 = floor(b0)*2.0 + 1.0; vec4 s1 = floor(b1)*2.0 + 1.0;
-            vec4 sh = -step(h, vec4(0.0));
-            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy; vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-            vec3 p0 = vec3(a0.xy,h.x); vec3 p1 = vec3(a0.zw,h.y); vec3 p2 = vec3(a1.xy,h.z); vec3 p3 = vec3(a1.zw,h.w);
-            vec4 m = max(0.6 - vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)), 0.0);
-            return 42.0 * dot(m*m*m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        // Noise für die radialen Neben-Spikes
+        float hash(float n) { return fract(sin(n) * 43758.5453123); }
+        float noise(vec3 x) {
+            vec3 p = floor(x); vec3 f = fract(x);
+            f = f*f*(3.0-2.0*f);
+            float n = p.x + p.y*57.0 + 113.0*p.z;
+            return mix(mix(mix(hash(n+0.0), hash(n+1.0), f.x), mix(hash(n+57.0), hash(n+58.0), f.x), f.y),
+                       mix(mix(hash(n+113.0), hash(n+114.0), f.x), mix(hash(n+170.0), hash(n+171.0), f.x), f.y), f.z);
         }
 
         void main() {
             vNormal = normalize(normalMatrix * normal);
             vec4 worldPos = modelMatrix * vec4(position, 1.0);
             
-            // Maus-Position (Docking-Punkt)
-            vec3 mousePos3D = vec3(uMouse * 10.0, 3.5);
+            // Zielpunkt der Nadel (Maus-Position)
+            vec3 targetPos = vec3(uMouse * 10.0, 5.0);
+            vec3 dirToTarget = normalize(targetPos - worldPos.xyz);
             
-            // Distanz-Berechnungen
-            float distToMouse = distance(worldPos.xyz, mousePos3D);
+            // LINEAR LOGIC:
+            // Wir berechnen die Ausrichtung des Punktes zum Ziel.
+            // Je exakter der Punkt zum Ziel schaut, desto länger der Spike.
+            float alignment = max(0.0, dot(normalize(position), normalize(targetPos)));
             
-            // 1. HYPERBOLISCHER FALLOFF (Macht den Hauptspike extrem dünn)
-            float falloff = exp(-distToMouse * (2.0 / uIntensity));
-            float hyperbolic = pow(falloff, CONFIG_SHARPNESS);
+            // EXTREME SCHÄRFE:
+            // Durch eine sehr hohe Potenz wird aus der "Glocke" eine "Linie"
+            float linearFactor = pow(alignment, CONFIG_SHARPNESS);
             
-            // 2. RADIALES RAUSCHEN (Bricht den Hügel in viele kleine Nadeln auf)
-            float noise = snoise(position * 4.0 + uTime * 0.5);
-            float radialSpikes = hyperbolic * (0.4 + 0.6 * max(0.0, noise));
+            // Neben-Spikes: Rauschen nur dort, wo der Linearfaktor aktiv ist
+            float n = noise(position * 8.0 + uTime);
+            float radialBreak = linearFactor * (0.3 + 0.7 * n);
             
-            // 3. DOCKING & STRETCH
-            vec3 pullDir = mousePos3D - worldPos.xyz;
-            float sideMask = max(0.0, dot(normalize(position), normalize(mousePos3D)));
-            
-            // Die Spitze dockt direkt an, die Basis bleibt weich
-            vec3 offset = pullDir * radialSpikes * sideMask * uIntensity;
-            
-            vec3 newPos = position + offset;
+            // Die Verschiebung folgt der Richtung zum Cursor
+            vec3 pull = (targetPos - worldPos.xyz) * uIntensity;
+            vec3 newPos = position + pull * radialBreak;
             
             vWorldPosition = (modelMatrix * vec4(newPos, 1.0)).xyz;
             vViewPosition = (modelViewMatrix * vec4(newPos, 1.0)).xyz;
@@ -107,38 +88,35 @@
 
     const fragmentShader = `
         varying vec3 vNormal;
-        varying vec3 vViewPosition;
         varying vec3 vWorldPosition;
+        varying vec3 vViewPosition;
         uniform float uTime;
 
         void main() {
             vec3 fNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
             vec3 viewDir = normalize(-vViewPosition);
-            float angle = dot(fNormal, viewDir);
+            float fresnel = pow(1.0 - dot(fNormal, viewDir), 3.0);
             
-            vec3 finalColor;
-            if (angle > 0.92) {
-                // Glow für die Nadelspitzen
-                float flow = sin(angle * 30.0 + uTime * 6.0) * 0.5 + 0.5;
-                finalColor = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 1.0), flow);
-            } else {
-                float stripes = sin(vWorldPosition.y * 15.0 + vWorldPosition.x * 5.0 + uTime * 4.0);
-                finalColor = vec3(step(0.1, stripes));
-            }
-            gl_FragColor = vec4(finalColor, 1.0);
+            vec3 color;
+            float stripes = step(0.1, sin(vWorldPosition.y * 20.0 + uTime * 5.0));
+            
+            // Die Nadelspitzen glühen in Cyan
+            color = mix(vec3(stripes), vec3(0.0, 1.0, 1.0), fresnel);
+            
+            gl_FragColor = vec4(color, 1.0);
         }
     `;
 
-    // --- SETUP ---
+    // --- Engine ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const geometry = new THREE.IcosahedronGeometry(CONFIG.sphereRadius, CONFIG.detail);
+    const geometry = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
     const material = new THREE.ShaderMaterial({
-        vertexShader: vertexShader.replace('CONFIG_SHARPNESS', CONFIG.needleSharpness.toFixed(1)),
+        vertexShader: vertexShader.replace('CONFIG_SHARPNESS', CONFIG.lineSharpness.toFixed(1)),
         fragmentShader,
         uniforms: {
             uTime: { value: 0 },
@@ -152,37 +130,30 @@
     scene.add(mesh);
     camera.position.z = 11;
 
-    let targetIntensity = 0;
-
+    let targetInt = 0;
     window.addEventListener('mousemove', (e) => {
         const x = (e.clientX / window.innerWidth) * 2 - 1;
         const y = -(e.clientY / window.innerHeight) * 2 + 1;
         material.uniforms.uMouse.value.set(x, y);
-
-        const dist = Math.sqrt(x*x + y*y);
-        if (dist < CONFIG.activationRadius) {
-            targetIntensity = (CONFIG.activationRadius - dist) * 4.0;
-        } else {
-            targetIntensity = 0;
-        }
+        
+        const d = Math.sqrt(x*x + y*y);
+        targetInt = d < CONFIG.activationRange ? (CONFIG.activationRange - d) * 4.0 : 0;
     });
 
     function animate() {
         requestAnimationFrame(animate);
-        material.uniforms.uTime.value += 0.015;
-        // Etwas aggressiveres Follow-up der Intensität
-        material.uniforms.uIntensity.value += (targetIntensity - material.uniforms.uIntensity.value) * 0.12;
+        material.uniforms.uTime.value += 0.02;
+        material.uniforms.uIntensity.value += (targetInt - material.uniforms.uIntensity.value) * 0.15;
         mesh.rotation.y += CONFIG.rotationSpeed;
         renderer.render(scene, camera);
     }
+    animate();
 
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
-
-    animate();
 </script>
 </body>
 </html>
