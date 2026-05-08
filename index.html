@@ -144,45 +144,52 @@
             uniform float uThreshold;
 
             vec3 spectral(float t) {
+                // Sattere Farben durch Anpassung der Amplitude
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
-                // 1. Geometrie
+                // 1. Geometrie & Normals
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
                 float cameraFacing = dot(fNormal, viewDir);
                 
-                // 2. DAS ZEBRA (Hartes Schwarz-Weiß)
+                // 2. DAS ZEBRA (Präzise S/W Trennung)
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
                 float zebra = smoothstep(-0.02, 0.02, stripePattern); 
                 
-                // 3. DER REGENBOGEN (Extrem weich)
-                float colorShift = cameraFacing * 0.5 + uTime * 0.2 + vSpike * 0.5;
+                // 3. DER REGENBOGEN (Intensiviert)
+                // colorShift reagiert jetzt stärker auf die Bewegung (vSpike)
+                float colorShift = cameraFacing * 0.4 + uTime * 0.15 + vSpike * 0.8;
                 vec3 rainbow = spectral(colorShift);
                 
-                // 4. WEICHE MASKE (Wo soll die Farbe schimmern?)
-                float iridMask = smoothstep(uThreshold - 0.2, uThreshold + 0.4, cameraFacing);
+                // 4. MASKE (Breiterer Bereich für die Sichtbarkeit der Farben)
+                float iridMask = smoothstep(uThreshold - 0.4, uThreshold + 0.5, cameraFacing);
                 
-                // 5. KOMPOSITION (Der Trick für das Weiß)
-                // Wir starten mit der reinen Zebra-Farbe (Schwarz oder Weiß)
-                vec3 baseColor = vec3(zebra); 
+                // 5. HYBRID-MISCHUNG
+                vec3 color = vec3(0.0);
                 
-                // Wir mischen den Regenbogen nur dort ein, wo das Zebra WEISS ist (zebra > 0)
-                // Aber wir ersetzen das Weiß nicht, sondern blenden die Farbe sanft ein.
-                if(zebra > 0.1) {
-                    baseColor = mix(baseColor, rainbow, iridMask * 0.7); // 0.7 bewahrt etwas vom Weiß-Gefühl
+                if (zebra > 0.1) {
+                    // Wenn der Streifen weiß ist:
+                    // Wir nehmen ein helles Grau als Basis und ADDITIONIEREN die Farbe.
+                    // Das erhält das "Weiß-Gefühl", lässt die Farben aber leuchten.
+                    vec3 whiteBase = vec4(0.8).rgb; 
+                    color = mix(whiteBase, rainbow * 1.5, iridMask); 
+                } else {
+                    // Schwarze Streifen bleiben tiefschwarz
+                    color = vec3(0.0);
                 }
-                
-                // 6. SPIKE HIGHLIGHTS
+
+                // 6. SPIKE GLOW (Extra Leuchtkraft für die Spitzen)
                 if (vSpike > 0.05) {
                     float shine = dot(fNormal, vec3(0, 1, 0.5));
-                    float spikeIntensity = smoothstep(0.0, 1.0, vSpike) * iridMask;
-                    // Additiver Glanz macht die Spitzen hell und farbig
-                    baseColor += spectral(vSpike + uTime) * spikeIntensity * 0.5;
+                    float spikeEffect = smoothstep(0.0, 0.8, vSpike) * iridMask;
+                    // Die Spitzen leuchten kräftig im Farbspektrum
+                    color += spectral(vSpike + uTime * 0.5) * spikeEffect;
                 }
                 
-                gl_FragColor = vec4(baseColor, 1.0);
+                // Finaler Gamma-Check für knackige Farben
+                gl_FragColor = vec4(color, 1.0);
             }
         `
     });
