@@ -3,38 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stachel-Magnet-Sphäre</title>
-   <style>
-    /* Der Cursor wird hier für den gesamten Screen und das Canvas erzwungen */
-    body, html { 
-        margin: 0; 
-        padding: 0;
-        overflow: hidden; 
-        background: #000; 
-        cursor: crosshair !important; /* Erzwingt das Fadenkreuz */
-    }
-    
-    canvas { 
-        display: block; 
-        cursor: crosshair !important; /* Sicherstellung für das WebGL-Element */
-    }
-
-    #ui-hint {
-        position: fixed; 
-        top: 20px; 
-        left: 20px; 
-        color: #00f0ff; 
-        font-family: 'Courier New', monospace; 
-        pointer-events: none;
-        background: rgba(0, 240, 255, 0.1); 
-        padding: 10px; 
-        border-radius: 5px;
-        z-index: 100;
-    }
-</style>
+    <title>Dynamic Magnetic Aura</title>
+    <style>
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
+        canvas { display: block; cursor: crosshair !important; }
+        #ui {
+            position: fixed; top: 20px; left: 20px; color: #00f0ff; 
+            font-family: monospace; pointer-events: none;
+            background: rgba(0, 40, 60, 0.5); padding: 15px; border-radius: 8px; border: 1px solid #00f0ff;
+        }
+    </style>
 </head>
 <body>
-<div id="ui-hint">MAGNET-ZONE: 75% | STATUS: BEREIT</div>
+<div id="ui">MODE: DOCKING SPIKES | RADIAL DECAY: ACTIVE</div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -44,48 +25,52 @@
     import * as THREE from 'three';
 
     // ==========================================
-    // ANPASSBARE PARAMETER (CONFIG)
+    // ANPASSBARE PARAMETER
     // ==========================================
     const CONFIG = {
         sphereRadius: 2.5,
-        detail: 50,             // Höher = mehr/feinere Spikes (Performance-Lastig)
-        activationRadius: 0.75,  // Ab wann die Maus reagiert (0.0 bis 1.0)
-        maxSpikeLength: 4.0,    // Wie weit die Stacheln schießen
-        spikeSharpness: 2.0,    // Höher = dünnere, nadelartige Spitzen
-        rotationSpeed: 0.005,
-        irisAngle: 0.806        // 25 Grad für Farbverlauf (cos-Wert)
+        detail: 40,             // Erhöht für glattere Übergänge der vielen Spikes
+        activationRadius: 0.85, // Weite der Interaktionszone
+        influenceRange: 3.5,    // Wie breit die radialen Neben-Spikes streuen
+        rotationSpeed: 0.003
     };
 
-    // ==========================================
-    // SHADER QUELLCODE
-    // ==========================================
     const vertexShader = `
         varying vec3 vNormal;
         varying vec3 vViewPosition;
         varying vec3 vWorldPosition;
         uniform float uTime;
-        uniform float uIntensity; // Stärke der magnetischen Anziehung
-        uniform vec2 uMouse;      // Mausposition (-1 bis 1)
+        uniform float uIntensity;
+        uniform vec2 uMouse;
 
         void main() {
             vNormal = normalize(normalMatrix * normal);
             vec4 worldPos = modelMatrix * vec4(position, 1.0);
             
-            // Richtungsvektor zur Maus (Maus schwebt auf z=5 Ebene)
-            vec3 mousePos3D = vec3(uMouse * 8.0, 5.0); 
-            vec3 dirToMouse = normalize(mousePos3D - worldPos.xyz);
+            // Maus-Position im Raum (z=4 für Greif-Effekt)
+            vec3 mousePos3D = vec3(uMouse * 10.0, 4.0);
             
-            // Berechne, wie sehr diese Seite zur Maus schaut
-            float attraction = max(0.0, dot(normalize(worldPos.xyz), dirToMouse));
+            // Distanz von diesem Vertex zur Maus-Projektion
+            float distToMouse = distance(worldPos.xyz, mousePos3D);
             
-            // STACHEL-LOGIK:
-            // Nur auf der Mausseite (attraction > 0)
-            // Wir potenzieren die Attraction, um die Spitzen schmaler zu machen
-            // uIntensity steuert die Gesamtlänge
-            float spikes = pow(attraction, ${CONFIG.spikeSharpness.toFixed(1)}) * uIntensity * ${CONFIG.maxSpikeLength.toFixed(1)};
+            // RADIALER ABFALL: 
+            // Eine scharfe Gauß-Kurve für den Haupt-Spike und die radialen Neben-Spikes
+            float falloff = exp(-pow(distToMouse / CONFIG.influenceRange, 2.0));
             
-            // Versetze die Scheitelpunkte entlang der Normalen
-            vec3 newPos = position + normal * spikes;
+            // DOCKING LOGIC:
+            // Wir berechnen den Vektor von der Kugeloberfläche zur Maus
+            vec3 pullDir = mousePos3D - worldPos.xyz;
+            
+            // Nur Vertices auf der Vorderseite werden gezogen
+            float sideMask = max(0.0, dot(normalize(position), normalize(mousePos3D)));
+            
+            // Finale Verschiebung:
+            // Wir ziehen den Vertex in Richtung Maus, skaliert durch Intensität und Falloff
+            vec3 offset = pullDir * falloff * uIntensity * sideMask;
+            
+            // Smooth Transition zurück zur Kugel (Basis-Schutz)
+            float stretchLimit = smoothstep(0.0, 0.2, falloff);
+            vec3 newPos = position + (offset * stretchLimit);
             
             vWorldPosition = (modelMatrix * vec4(newPos, 1.0)).xyz;
             vViewPosition = (modelViewMatrix * vec4(newPos, 1.0)).xyz;
@@ -100,41 +85,32 @@
         uniform float uTime;
 
         void main() {
-            // Harte Kanten für Low-Poly Look
             vec3 fNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
             vec3 viewDir = normalize(-vViewPosition);
             float angle = dot(fNormal, viewDir);
             
             vec3 finalColor;
-            
-            // 25 Grad Farb-Check
-            if (angle > ${CONFIG.irisAngle.toFixed(3)}) {
-                // Iridiszenz (Cyan/Magenta)
-                float flow = sin(angle * 15.0 + uTime * 4.0) * 0.5 + 0.5;
-                finalColor = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 0.0, 1.0), flow);
+            if (angle > 0.906) {
+                float flow = sin(angle * 20.0 + uTime * 4.0) * 0.5 + 0.5;
+                finalColor = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 1.0), flow);
             } else {
-                // Zebra-Muster auf allen anderen Flächen
-                float stripes = sin(vWorldPosition.y * 12.0 + vWorldPosition.x * 6.0 + uTime * 5.0);
-                finalColor = vec3(step(0.05, stripes));
+                // Zebra mit Zeit-Animation
+                float stripes = sin(vWorldPosition.y * 8.0 + vWorldPosition.x * 4.0 + uTime * 3.0);
+                finalColor = vec3(step(0.1, stripes));
             }
-            
             gl_FragColor = vec4(finalColor, 1.0);
         }
     `;
 
-    // ==========================================
-    // MAIN ENGINE SETUP
-    // ==========================================
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Geometrie mit hoher Unterteilung für viele kleine Spikes
     const geometry = new THREE.IcosahedronGeometry(CONFIG.sphereRadius, CONFIG.detail);
     const material = new THREE.ShaderMaterial({
-        vertexShader,
+        vertexShader: vertexShader.replace('CONFIG.influenceRange', CONFIG.influenceRange.toFixed(1)),
         fragmentShader,
         uniforms: {
             uTime: { value: 0 },
@@ -146,22 +122,18 @@
 
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
-    camera.position.z = 10;
+    camera.position.z = 12;
 
     let targetIntensity = 0;
 
-    // Maus-Interaktion
     window.addEventListener('mousemove', (e) => {
         const x = (e.clientX / window.innerWidth) * 2 - 1;
         const y = -(e.clientY / window.innerHeight) * 2 + 1;
         material.uniforms.uMouse.value.set(x, y);
 
         const dist = Math.sqrt(x*x + y*y);
-
-        // Aktiviere nur innerhalb des 75% Radius
         if (dist < CONFIG.activationRadius) {
-            // Intensität steigt, je näher man der Mitte kommt
-            targetIntensity = (CONFIG.activationRadius - dist) * 2.0;
+            targetIntensity = (CONFIG.activationRadius - dist) * 3.0;
         } else {
             targetIntensity = 0;
         }
@@ -169,17 +141,12 @@
 
     function animate() {
         requestAnimationFrame(animate);
-        
-        material.uniforms.uTime.value += 0.015;
-        
-        // Sanftes Aus- und Einfahren der Stacheln (Interpolation)
-        material.uniforms.uIntensity.value += (targetIntensity - material.uniforms.uIntensity.value) * 0.1;
-        
+        material.uniforms.uTime.value += 0.01;
+        material.uniforms.uIntensity.value += (targetIntensity - material.uniforms.uIntensity.value) * 0.08;
         mesh.rotation.y += CONFIG.rotationSpeed;
         renderer.render(scene, camera);
     }
 
-    // Resize Handling
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
