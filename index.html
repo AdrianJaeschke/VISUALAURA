@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linear Needle Spike</title>
+    <title>Fractal Low-Poly Spikes</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; cursor: crosshair !important; }
@@ -11,12 +11,12 @@
             position: fixed; top: 20px; left: 20px; color: #00f0ff; 
             font-family: monospace; pointer-events: none;
             background: rgba(0, 10, 20, 0.9); padding: 10px; border: 1px solid #00f0ff;
-            font-size: 11px; text-transform: uppercase;
+            font-size: 11px; text-transform: uppercase; z-index: 100;
         }
     </style>
 </head>
 <body>
-<div id="ui">Mode: Linear_Vector_Spike // Sharpness: Ultra</div>
+<div id="ui">Mode: Fractal_LowPoly // Tracking: Precision</div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -26,15 +26,16 @@
     import * as THREE from 'three';
 
     // ==========================================
-    // TUNING PARAMETERS
+    // ANPASSBARE PARAMETER (CONFIG)
     // ==========================================
     const CONFIG = {
         radius: 2.5,
-        detail: 200,             // Maximale Auflösung für die dünne Linie
-        activationRange: 0.95,
-        lineSharpness: 50.0,    // Höher = dünnere "Linien"-Optik
-        maxReach: 12.0,         // Wie weit die Nadel schießen kann
-        rotationSpeed: 0.001
+        detail: 15,             // LOW POLY: Niedrigerer Wert (10-20) macht es kantiger
+        spikeCount: 18.0,       // FRAKTAL: Dichte der ausbrechenden Spitzen
+        activationRange: 1.0,   // Radius der Maus-Interaktion
+        spikeSharpness: 8.0,    // Wie spitz die fraktalen Ausbrüche sind
+        maxReach: 5.0,          // Maximale Länge der Spikes
+        rotationSpeed: 0.002
     };
 
     const vertexShader = `
@@ -43,42 +44,44 @@
         varying vec3 vViewPosition;
         uniform float uTime;
         uniform float uIntensity;
-        uniform vec2 uMouse;
+        uniform vec3 uMouseWorld; // Präzise Weltkoordinaten der Maus
 
-        // Noise für die radialen Neben-Spikes
-        float hash(float n) { return fract(sin(n) * 43758.5453123); }
-        float noise(vec3 x) {
-            vec3 p = floor(x); vec3 f = fract(x);
-            f = f*f*(3.0-2.0*f);
-            float n = p.x + p.y*57.0 + 113.0*p.z;
-            return mix(mix(mix(hash(n+0.0), hash(n+1.0), f.x), mix(hash(n+57.0), hash(n+58.0), f.x), f.y),
-                       mix(mix(hash(n+113.0), hash(n+114.0), f.x), mix(hash(n+170.0), hash(n+171.0), f.x), f.y), f.z);
+        // Simplex Noise für fraktale Strukturen
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+        float snoise(vec3 v) {
+            const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+            vec3 i  = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+            vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g;
+            vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
+            vec3 x1 = x0 - i1 + C.xxx; vec3 x2 = x0 - i2 + C.yyy; vec3 x3 = x0 - D.yyy;
+            i = mod289(i);
+            vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            return 42.0 * dot(m*m*m*m, vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)));
         }
 
         void main() {
             vNormal = normalize(normalMatrix * normal);
             vec4 worldPos = modelMatrix * vec4(position, 1.0);
             
-            // Zielpunkt der Nadel (Maus-Position)
-            vec3 targetPos = vec3(uMouse * 10.0, 5.0);
-            vec3 dirToTarget = normalize(targetPos - worldPos.xyz);
+            // 1. Präzise Distanz zur Maus im 3D-Raum
+            float distToMouse = distance(worldPos.xyz, uMouseWorld);
             
-            // LINEAR LOGIC:
-            // Wir berechnen die Ausrichtung des Punktes zum Ziel.
-            // Je exakter der Punkt zum Ziel schaut, desto länger der Spike.
-            float alignment = max(0.0, dot(normalize(position), normalize(targetPos)));
+            // 2. Fraktale Maske: Erzeugt viele kleine Ausbruchspunkte
+            float fractalNoise = snoise(position * CONFIG_SPIKE_COUNT + uTime * 0.2);
             
-            // EXTREME SCHÄRFE:
-            // Durch eine sehr hohe Potenz wird aus der "Glocke" eine "Linie"
-            float linearFactor = pow(alignment, CONFIG_SHARPNESS);
+            // 3. Interaktions-Zone: Nur im Umkreis der Maus
+            float influence = smoothstep(5.0, 0.0, distToMouse);
             
-            // Neben-Spikes: Rauschen nur dort, wo der Linearfaktor aktiv ist
-            float n = noise(position * 8.0 + uTime);
-            float radialBreak = linearFactor * (0.3 + 0.7 * n);
+            // 4. Spike-Forming: Scharfe Spitzen durch Potenzierung des Noises
+            float spikes = pow(max(0.0, fractalNoise), CONFIG_SHARPNESS) * influence * uIntensity;
             
-            // Die Verschiebung folgt der Richtung zum Cursor
-            vec3 pull = (targetPos - worldPos.xyz) * uIntensity;
-            vec3 newPos = position + pull * radialBreak;
+            // Verschiebung entlang der Normalen für Low-Poly Look
+            vec3 newPos = position + normal * spikes * CONFIG_REACH;
             
             vWorldPosition = (modelMatrix * vec4(newPos, 1.0)).xyz;
             vViewPosition = (modelViewMatrix * vec4(newPos, 1.0)).xyz;
@@ -93,57 +96,77 @@
         uniform float uTime;
 
         void main() {
+            // Hartes Shading erzeugt die Low-Poly Flächenoptik
             vec3 fNormal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
             vec3 viewDir = normalize(-vViewPosition);
-            float fresnel = pow(1.0 - dot(fNormal, viewDir), 3.0);
+            float angle = dot(fNormal, viewDir);
             
             vec3 color;
-            float stripes = step(0.1, sin(vWorldPosition.y * 20.0 + uTime * 5.0));
+            // Zebra-Muster auf Weltkoordinaten
+            float stripes = step(0.1, sin(vWorldPosition.y * 15.0 + uTime * 2.0));
             
-            // Die Nadelspitzen glühen in Cyan
-            color = mix(vec3(stripes), vec3(0.0, 1.0, 1.0), fresnel);
+            // Iridiszenz-Check (ca. 25 Grad)
+            if(angle > 0.906) {
+                float flow = sin(uTime * 3.0) * 0.5 + 0.5;
+                color = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 1.0), flow);
+            } else {
+                color = vec3(stripes);
+            }
             
             gl_FragColor = vec4(color, 1.0);
         }
     `;
 
-    // --- Engine ---
+    // --- SETUP ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    // Geometrie & Shader Material
     const geometry = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
     const material = new THREE.ShaderMaterial({
-        vertexShader: vertexShader.replace('CONFIG_SHARPNESS', CONFIG.lineSharpness.toFixed(1)),
+        vertexShader: vertexShader
+            .replace('CONFIG_SPIKE_COUNT', CONFIG.spikeCount.toFixed(1))
+            .replace('CONFIG_SHARPNESS', CONFIG.spikeSharpness.toFixed(1))
+            .replace('CONFIG_REACH', CONFIG.maxReach.toFixed(1)),
         fragmentShader,
         uniforms: {
             uTime: { value: 0 },
             uIntensity: { value: 0 },
-            uMouse: { value: new THREE.Vector2(0, 0) }
+            uMouseWorld: { value: new THREE.Vector3(0, 0, 0) }
         },
         side: THREE.DoubleSide
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
-    camera.position.z = 11;
+    camera.position.z = 10;
 
-    let targetInt = 0;
+    // Präzises Mouse-To-World Tracking
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); 
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const pointOfIntersection = new THREE.Vector3();
+
     window.addEventListener('mousemove', (e) => {
-        const x = (e.clientX / window.innerWidth) * 2 - 1;
-        const y = -(e.clientY / window.innerHeight) * 2 + 1;
-        material.uniforms.uMouse.value.set(x, y);
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(plane, pointOfIntersection);
         
-        const d = Math.sqrt(x*x + y*y);
-        targetInt = d < CONFIG.activationRange ? (CONFIG.activationRange - d) * 4.0 : 0;
+        // Sende Weltkoordinaten an Shader
+        material.uniforms.uMouseWorld.value.copy(pointOfIntersection);
+
+        const dist = Math.sqrt(mouse.x**2 + mouse.y**2);
+        material.uniforms.uIntensity.value = dist < CONFIG.activationRange ? (CONFIG.activationRange - dist) * 5.0 : 0;
     });
 
     function animate() {
         requestAnimationFrame(animate);
         material.uniforms.uTime.value += 0.02;
-        material.uniforms.uIntensity.value += (targetInt - material.uniforms.uIntensity.value) * 0.15;
         mesh.rotation.y += CONFIG.rotationSpeed;
         renderer.render(scene, camera);
     }
