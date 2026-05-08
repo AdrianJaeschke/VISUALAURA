@@ -3,24 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mandelbrot Iridisierende Aura</title>
+    <title>Mandelbrot Selbststrahlende Aura</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000000; touch-action: none; }
         canvas { display: block; }
-        /* Deine Status-Box bleibt */
         #status-box {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;
-            padding: 12px 20px; color: #00f0ff; font-family: sans-serif; font-size: 14px;
-            text-align: center; transition: opacity 0.5s ease; z-index: 1000; pointer-events: none;
+            background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 8px; padding: 12px 20px; color: #00f0ff; font-family: monospace;
+            font-size: 13px; text-align: center; transition: opacity 0.5s ease; z-index: 1000; pointer-events: none;
         }
         .error { color: #ff0055 !important; border-color: rgba(255, 0, 85, 0.3) !important; }
     </style>
 </head>
 <body>
 
-<div id="status-box">Initialisiere...</div>
+<div id="status-box">Initialisiere Aura-Shader...</div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -29,7 +27,54 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- Variablen & Setup ---
+    // ==========================================
+    // NEU: Shader Definitionen für Selbststrahlung
+    // ==========================================
+    
+    // VERTEX SHADER: Berechnet die Deformation und die "Höhe" (Fraktal-Tiefe)
+    const vertexShader = `
+        varying vec3 vNormal;
+        varying float vDepth;
+        uniform float uTime;
+
+        void main() {
+            vNormal = normalize(normalMatrix * normal);
+            
+            // Nutze die Vertex-Position, um die Fraktal-Tiefe (Z) als Höhe zu simulieren.
+            // (Hier vereinfacht, die echte Verformung passiert in der Update-Logik,
+            //  aber wir geben den Wert an den Fragment Shader weiter)
+            vDepth = position.z;
+            
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `;
+
+    // FRAGMENT SHADER: Berechnet die strahlende Farbe basierend auf Tiefe und Zeit
+    const fragmentShader = `
+        varying vec3 vNormal;
+        varying float vDepth;
+        uniform float uTime;
+        uniform vec3 uColor1; // Cyan
+        uniform vec3 uColor2; // Magenta
+
+        void main() {
+            // Normale berechnen (für Low-Poly Kanten-Look)
+            vec3 fNormal = normalize(cross(dFdx(vNormal), dFdy(vNormal)));
+            float light = dot(fNormal, normalize(vec3(0.0, 0.0, 1.0))) * 0.5 + 0.5;
+
+            // DYNAMISCHE FARBVERLÄUFE:
+            // Wir mischen Cyan und Magenta basierend auf der Fraktal-Tiefe (vDepth)
+            // und einem Zeit-Faktor, der die Farben "fließen" lässt.
+            float mixFactor = sin(vDepth * 15.0 + uTime * 2.0) * 0.5 + 0.5;
+            vec3 iridiscentColor = mix(uColor1, uColor2, mixFactor);
+            
+            // ERGEBNIS: Die Farbe strahlt von sich aus (Emissive). 
+            // light * 0.2 simuliert eine ganz schwache Schattierung für den Kanten-Look.
+            gl_FragColor = vec4(iridiscentColor * (0.8 + light * 0.2), 1.0);
+        }
+    `;
+
+    // --- Variablen & Setup (Bestehend) ---
     let targetRotX = -Math.PI / 4, targetRotY = 0;
     const statusBox = document.getElementById('status-box');
 
@@ -40,22 +85,19 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // --- Geometrie (Hohe Auflösung für Zacken) ---
-    const geometry = new THREE.PlaneGeometry(12, 12, 128, 128); // Auflösung erhöhen
+    // ==========================================
+    // NEU: ShaderMaterial für die strahlende Aura
+    // ==========================================
+    const geometry = new THREE.PlaneGeometry(12, 12, 128, 128); // Auflösung bleibt
     
-    // ==========================================
-    // NEU: Iridisierendes Physikalisch Korrektes Material
-    // ==========================================
-    const material = new THREE.MeshPhysicalMaterial({
-        color: 0x1a1a1a, // Grundfarbe dunkel
-        metalness: 0.9,  // Metallisch für Glanz
-        roughness: 0.1,  // Glatt für scharfe Reflexionen
-        
-        // Iridiszenz-Einstellungen (Das ist der Schlüssel!)
-        iridescence: 1.0, 
-        iridescenceIOR: 1.3, // Brechungsindex
-        iridescenceThicknessRange: [100, 400], // Schichtdicke
-        
+    const material = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        uniforms: {
+            uTime: { value: 0 },
+            uColor1: { value: new THREE.Color(0x00ffff) }, // Cyan
+            uColor2: { value: new THREE.Color(0xff00ff) }  // Magenta
+        },
         flatShading: true, // Wichtig für den Low-Poly-Look
         side: THREE.DoubleSide
     });
@@ -64,29 +106,13 @@
     sculpture.rotation.x = targetRotX;
     scene.add(sculpture);
 
-    // ==========================================
-    // NEU: Beleuchtung für Iridiszenz hinzufügen
-    // ==========================================
-    // Zwei Punktlichter, um die Skulptur zu beleuchten und den Effekt auszulösen
-    const pointLight1 = new THREE.PointLight(0xff00ff, 15, 50); // Magenta
-    pointLight1.position.set(5, 5, 5);
-    scene.add(pointLight1);
-
-    const pointLight2 = new THREE.PointLight(0x00ffff, 15, 50); // Cyan
-    pointLight2.position.set(-5, -5, 5);
-    scene.add(pointLight2);
-
-    // Umgebungslicht für Grundhelligkeit
-    const ambientLight = new THREE.AmbientLight(0x111111);
-    scene.add(ambientLight);
-
+    // Keine Lichtquellen mehr nötig!
     camera.position.z = 10;
 
-    // --- Mandelbrot Deformation Logik ---
+    // --- Mandelbrot Deformation Logik (Bestehend) ---
     function updateMandelbrot() {
         const pos = geometry.attributes.position;
         const zoom = 2.2, offX = -0.5;
-
         for (let i = 0; i < pos.count; i++) {
             let x0 = (pos.getX(i) * (1/zoom)) + offX, y0 = (pos.getY(i) * (1/zoom));
             let x = 0, y = 0, iter = 0, maxIter = 32;
@@ -97,12 +123,11 @@
             pos.setZ(i, iter * 0.2); 
         }
         pos.needsUpdate = true;
-        // WICHTIG: Normale neu berechnen, sonst stimmt die Beleuchtung nicht
-        geometry.computeVertexNormals();
+        // geometry.computeVertexNormals(); // Shader rechnet eigene Normale, nicht nötig.
     }
     updateMandelbrot();
 
-    // --- Animation Loop (Beleuchtung mit-animieren) ---
+    // --- Animation Loop ---
     function animate() {
         requestAnimationFrame(animate);
 
@@ -110,47 +135,18 @@
         sculpture.rotation.x += (targetRotX - sculpture.rotation.x) * 0.08;
         sculpture.rotation.y += (targetRotY - sculpture.rotation.y) * 0.08;
 
-        // Lichter bewegen sich leicht, um die Iridiszenz zu betonen
-        const t = Date.now() * 0.001;
-        pointLight1.position.x = 5 + Math.sin(t) * 2;
-        pointLight1.position.z = 5 + Math.cos(t) * 2;
-        pointLight2.position.y = -5 + Math.cos(t * 1.3) * 2;
+        // DYNAMISCHE FARBVERLÄUFE AKTIVIEREN:
+        // Wir übergeben die aktuelle Zeit an den Shader
+        material.uniforms.uTime.value += 0.02;
 
         renderer.render(scene, camera);
     }
     animate();
 
-    // --- Input & Status Logic (Deine bestehende Logik) ---
-    function updateStatus(msg, isError = false) {
-        statusBox.innerHTML = msg;
-        if (isError) statusBox.classList.add('error');
-        else statusBox.classList.remove('error');
-        statusBox.style.opacity = '1';
-        setTimeout(() => statusBox.style.opacity = '0.3', 3000);
-    }
-
-    const activateGyro = () => {
-        window.addEventListener('deviceorientation', (e) => {
-            if (e.beta !== null) {
-                targetRotX = (e.beta / 180 * Math.PI) - Math.PI / 4;
-                targetRotY = (e.gamma / 90 * Math.PI);
-            }
-        }, true);
-        updateStatus("Gyroskop aktiv ✓");
-    };
-
-    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        updateStatus("Bitte tippen für Sensor-Aktivierung...");
-        window.addEventListener('click', function handler() {
-            DeviceOrientationEvent.requestPermission().then(s => s==='granted'?activateGyro():updateStatus("Verweigert", true));
-            window.removeEventListener('click', handler);
-        }, { once: true });
-    } else if (window.DeviceOrientationEvent) { activateGyro(); }
-    else { updateStatus("Kein Gyro - Nutze Maus"); window.addEventListener('mousemove', (e) => {
-        targetRotY = (e.clientX / window.innerWidth - 0.5) * 1.5;
-        targetRotX = (e.clientY / window.innerHeight - 0.5) * 1.5 - Math.PI/4;
-    });}
-
+    // --- Input & Status Logic (Bestehend) ---
+    function updateStatus(msg, isError = false) { statusBox.innerHTML = msg; if (isError) statusBox.classList.add('error'); else statusBox.classList.remove('error'); statusBox.style.opacity = '1'; setTimeout(() => statusBox.style.opacity = '0.3', 3000); }
+    const activateGyro = () => { window.addEventListener('deviceorientation', (e) => { if (e.beta !== null) { targetRotX = (e.beta / 180 * Math.PI) - Math.PI / 4; targetRotY = (e.gamma / 90 * Math.PI); } }, true); updateStatus("Aura aktiv ✓"); };
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') { updateStatus("Bitte tippen für Aura-Start..."); window.addEventListener('click', function handler() { DeviceOrientationEvent.requestPermission().then(s => s==='granted'?activateGyro():updateStatus("Verweigert", true)); window.removeEventListener('click', handler); }, { once: true }); } else if (window.DeviceOrientationEvent) { activateGyro(); } else { updateStatus("Kein Gyro - Nutze Maus"); window.addEventListener('mousemove', (e) => { targetRotY = (e.clientX / window.innerWidth - 0.5) * 1.5; targetRotX = (e.clientY / window.innerHeight - 0.5) * 1.5 - Math.PI/4; });}
     window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
 
 </script>
