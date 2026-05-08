@@ -2,14 +2,14 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Low Poly Iridiscent Spikes</title>
+    <title>Fixed Zebra & 25° Camera Logic</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; }
         #ui {
             position: fixed; top: 20px; left: 20px; color: #00f0ff; 
             font-family: 'Courier New', monospace; font-size: 10px;
-            background: rgba(0, 20, 30, 0.9); padding: 12px; border: 1px solid #00f0ff;
+            background: rgba(0, 15, 25, 0.9); padding: 12px; border: 1px solid #00f0ff;
             pointer-events: none; z-index: 100;
         }
     </style>
@@ -17,9 +17,9 @@
 <body>
 
 <div id="ui">
-    PATTERN: HIGH_CONTRAST_ZEBRA<br>
-    GEOMETRY: LOW_POLY_FACETED<br>
-    IRIDISCENCE: 25_DEG_LIMIT
+    PROJECTION: PLANAR_FIXED<br>
+    LOGIC: 25_DEG_CAMERA_FACING<br>
+    SPIKES: LOW_POLY_IRIDISCENT
 </div>
 
 <script type="importmap">
@@ -31,10 +31,11 @@
 
     const CONFIG = {
         radius: 2.5,
-        detail: 30,             // Perfekte Balance für Low-Poly Facetten
-        spikeSharpness: 25.0,   // Extrem spitz
-        maxReach: 1.9,          
-        rotationSpeed: 0.005
+        detail: 35,
+        spikeSharpness: 22.0,
+        maxReach: 1.8,
+        rotationSpeed: 0.005,
+        stripeDensity: 12.0
     };
 
     const scene = new THREE.Scene();
@@ -55,7 +56,7 @@
         vertexShader: `
             varying vec3 vNormal;
             varying vec3 vViewDir;
-            varying vec3 vLocalPos;
+            varying vec3 vWorldPos;
             varying float vSpike;
             uniform float uTime;
             uniform vec2 uMouse;
@@ -67,9 +68,7 @@
             }
 
             void main() {
-                vLocalPos = position;
-                
-                // Rotation kompensieren
+                // Rotation für präzises Tracking kompensieren
                 vec3 compPos = rotateY(uRotationY) * position;
                 
                 vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
@@ -77,57 +76,60 @@
                 vec2 ndc = pPos.xy / pPos.w;
                 
                 float d = distance(ndc, uMouse);
-                float influence = smoothstep(0.65, 0.0, d);
+                float influence = smoothstep(0.6, 0.0, d);
                 
-                // Spike Logik (Faceted)
-                float noise = sin(position.x * 10.0) * cos(position.y * 10.0 + uTime);
-                vSpike = pow(max(0.0, influence + noise * 0.3), ${CONFIG.spikeSharpness.toFixed(1)});
+                // Spike Logik
+                float noise = sin(position.x * 12.0) * cos(position.y * 12.0 + uTime);
+                vSpike = pow(max(0.0, influence + noise * 0.25), ${CONFIG.spikeSharpness.toFixed(1)});
 
                 vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach.toFixed(1)} * uIntensity;
                 
+                vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
+                vWorldPos = worldPos.xyz;
                 vNormal = normalize(normalMatrix * normal);
-                vViewDir = normalize(-mvPos.xyz);
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+                vViewDir = normalize(cameraPosition - vWorldPos);
+                
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
         `,
         fragmentShader: `
             varying vec3 vNormal;
             varying vec3 vViewDir;
-            varying vec3 vLocalPos;
+            varying vec3 vWorldPos;
             varying float vSpike;
             uniform float uTime;
 
-            // Spektrum für Iridiszenz
             vec3 spectral(float t) {
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
-                // Erzwungene Low-Poly Normalen (Flat Shading)
-                vec3 fNormal = normalize(cross(dFdx(vLocalPos), dFdy(vLocalPos)));
-                float angle = dot(fNormal, vViewDir);
+                // Low-Poly Normalen für harte Kanten
+                vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 
-                // 1. Echt Schwarz-Weißes Zebra (Spherical)
-                float phi = atan(vLocalPos.z, vLocalPos.x);
-                float stripeValue = sin(phi * 8.0 + vLocalPos.y * 4.0 + uTime);
-                float zebra = step(0.0, stripeValue); // Harter Cutoff für S/W
+                // 25 GRAD LOGIK: Winkel zur Kamera (dot product)
+                // 1.0 = schaut direkt in die Kamera, 0.906 = 25 Grad Abweichung
+                float cameraFacing = dot(fNormal, vViewDir);
+                
+                // ZEBRA MUSTER: Planare Projektion (verhindert Verzerrung an den Polen)
+                // Wir nutzen die Y-Koordinate der Weltposition
+                float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
+                float zebra = step(0.0, stripePattern);
                 
                 vec3 color = vec3(zebra);
 
-                // 2. 25-Grad Iridiszenz Logik
-                // Wenn die Fläche fast direkt zur Kamera schaut
-                if (angle > 0.906) {
-                    vec3 irid = spectral(angle + vSpike + uTime * 0.2);
-                    // Mischung aus Iridiszenz und Zebra
-                    color = mix(color, irid, 0.9);
+                // Irisierung innerhalb der 25 Grad Zone
+                if (cameraFacing > 0.906) {
+                    float shift = (cameraFacing - 0.906) / (1.0 - 0.906);
+                    vec3 irid = spectral(shift + uTime * 0.3 + vSpike);
+                    color = mix(color, irid, shift);
                 }
 
-                // 3. Spike-Flächen besonders hervorheben
-                if (vSpike > 0.05) {
-                    // Eine Seite der Spikes glüht irisierend
-                    float spikeFace = dot(fNormal, vec3(0.0, 1.0, 0.5));
-                    if(spikeFace > 0.5) {
-                        color = mix(color, spectral(vSpike * 3.0 + uTime), vSpike);
+                // Spikes: Eine Facette pro Spike leuchtet bei Interaktion
+                if (vSpike > 0.1) {
+                    float spikeHighlight = dot(fNormal, vec3(0.5, 0.8, 0.2));
+                    if(spikeHighlight > 0.4) {
+                        color = mix(color, spectral(vSpike + uTime), vSpike);
                     }
                 }
 
