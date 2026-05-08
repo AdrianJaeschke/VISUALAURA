@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Fixed Zebra & 25° Camera Logic</title>
+    <title>Final Spike Logic</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; }
@@ -17,9 +17,9 @@
 <body>
 
 <div id="ui">
-    PROJECTION: PLANAR_FIXED<br>
-    LOGIC: 25_DEG_CAMERA_FACING<br>
-    SPIKES: LOW_POLY_IRIDISCENT
+    PATTERN: STABLE_PLANAR<br>
+    LOGIC: CAMERA_FACING_GRADIENT<br>
+    STATUS: ONLINE
 </div>
 
 <script type="importmap">
@@ -29,14 +29,22 @@
 <script type="module">
     import * as THREE from 'three';
 
+    // ==========================================
+    // PARAMETER LISTE (Inklusive Grad-Logik)
+    // ==========================================
     const CONFIG = {
         radius: 2.5,
-        detail: 25,
-        spikeSharpness: 12.0,
-        maxReach: 0.4,
+        detail: 35,
+        spikeSharpness: 22.0,
+        maxReach: 1.8,
         rotationSpeed: 0.005,
-        stripeDensity: 12.0
+        stripeDensity: 15.0,    // Dichte des Zebra-Musters
+        viewAngle: 25,          // GRAD LOGIK: Schwellenwert für Iridiszenz
+        iridSpeed: 0.3          // Geschwindigkeit des Farbwechsels
     };
+
+    // Umrechnung Grad in Dot-Product Schwellenwert
+    const angleThreshold = Math.cos(CONFIG.viewAngle * (Math.PI / 180));
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -51,7 +59,8 @@
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
             uIntensity: { value: 0 },
-            uRotationY: { value: 0 }
+            uRotationY: { value: 0 },
+            uThreshold: { value: angleThreshold }
         },
         vertexShader: `
             varying vec3 vNormal;
@@ -68,7 +77,6 @@
             }
 
             void main() {
-                // Rotation für präzises Tracking kompensieren
                 vec3 compPos = rotateY(uRotationY) * position;
                 
                 vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
@@ -78,7 +86,6 @@
                 float d = distance(ndc, uMouse);
                 float influence = smoothstep(0.6, 0.0, d);
                 
-                // Spike Logik
                 float noise = sin(position.x * 12.0) * cos(position.y * 12.0 + uTime);
                 vSpike = pow(max(0.0, influence + noise * 0.25), ${CONFIG.spikeSharpness.toFixed(1)});
 
@@ -98,37 +105,33 @@
             varying vec3 vWorldPos;
             varying float vSpike;
             uniform float uTime;
+            uniform float uThreshold;
 
             vec3 spectral(float t) {
                 return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
             }
 
             void main() {
-                // Low-Poly Normalen für harte Kanten
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-                
-                // 25 GRAD LOGIK: Winkel zur Kamera (dot product)
-                // 1.0 = schaut direkt in die Kamera, 0.906 = 25 Grad Abweichung
                 float cameraFacing = dot(fNormal, vViewDir);
                 
-                // ZEBRA MUSTER: Planare Projektion (verhindert Verzerrung an den Polen)
-                // Wir nutzen die Y-Koordinate der Weltposition
+                // Zebra Muster: Planare Welt-Projektion (keine Verdrehung an Polen)
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
                 float zebra = step(0.0, stripePattern);
                 
                 vec3 color = vec3(zebra);
 
-                // Irisierung innerhalb der 25 Grad Zone
-                if (cameraFacing > 0.906) {
-                    float shift = (cameraFacing - 0.906) / (1.0 - 0.906);
-                    vec3 irid = spectral(shift + uTime * 0.3 + vSpike);
+                // Dynamische 25 Grad Logik (über Parameter gesteuert)
+                if (cameraFacing > uThreshold) {
+                    float shift = (cameraFacing - uThreshold) / (1.0 - uThreshold);
+                    vec3 irid = spectral(shift + uTime * ${CONFIG.iridSpeed.toFixed(1)} + vSpike);
                     color = mix(color, irid, shift);
                 }
 
-                // Spikes: Eine Facette pro Spike leuchtet bei Interaktion
+                // Low Poly Spike Glanz
                 if (vSpike > 0.1) {
-                    float spikeHighlight = dot(fNormal, vec3(0.5, 0.8, 0.2));
-                    if(spikeHighlight > 0.4) {
+                    float sideHighlight = dot(fNormal, vec3(0.3, 1.0, 0.3));
+                    if(sideHighlight > 0.5) {
                         color = mix(color, spectral(vSpike + uTime), vSpike);
                     }
                 }
