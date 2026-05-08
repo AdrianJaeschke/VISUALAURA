@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Final Spike Logic</title>
+    <title>Low Poly Sphere Config</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; }
@@ -17,9 +17,9 @@
 <body>
 
 <div id="ui">
-    PATTERN: STABLE_PLANAR<br>
-    LOGIC: CAMERA_FACING_GRADIENT<br>
-    STATUS: ONLINE
+    GEOMETRY: LOW_POLY_ICOSA<br>
+    SHADING: FLAT_FACETED<br>
+    STATUS: CONFIG_READY
 </div>
 
 <script type="importmap">
@@ -30,20 +30,25 @@
     import * as THREE from 'three';
 
     // ==========================================
-    // PARAMETER LISTE (Inklusive Grad-Logik)
+    // ERWEITERTE PARAMETER LISTE
     // ==========================================
     const CONFIG = {
+        // Geometrie & Low Poly
         radius: 2.5,
-        detail: 35,
+        detail: 2,              // LOW POLY PARAMETER: 1-3 für harten Look, >20 für glatt
+        flatShading: true,      // Erzwingt harte Kanten
+        
+        // Spikes
         spikeSharpness: 22.0,
         maxReach: 1.8,
+        
+        // Zebra & Optik
+        stripeDensity: 15.0,
+        viewAngle: 25,          // Grad-Logik für Iridiszenz
         rotationSpeed: 0.005,
-        stripeDensity: 15.0,    // Dichte des Zebra-Musters
-        viewAngle: 40,          // GRAD LOGIK: Schwellenwert für Iridiszenz
-        iridSpeed: 0.3          // Geschwindigkeit des Farbwechsels
+        iridSpeed: 0.3
     };
 
-    // Umrechnung Grad in Dot-Product Schwellenwert
     const angleThreshold = Math.cos(CONFIG.viewAngle * (Math.PI / 180));
 
     const scene = new THREE.Scene();
@@ -53,6 +58,9 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
+    // Icosahedron ist ideal für Low Poly, da es gleichmäßige Dreiecke erzeugt
+    const geometry = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
 
     const material = new THREE.ShaderMaterial({
         uniforms: {
@@ -112,23 +120,22 @@
             }
 
             void main() {
+                // FLAT SHADING LOGIK: Berechnet Normalen pro Dreieck für Low Poly Look
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
                 float cameraFacing = dot(fNormal, vViewDir);
                 
-                // Zebra Muster: Planare Welt-Projektion (keine Verdrehung an Polen)
                 float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
                 float zebra = step(0.0, stripePattern);
                 
                 vec3 color = vec3(zebra);
 
-                // Dynamische 25 Grad Logik (über Parameter gesteuert)
+                // 25 Grad Logik
                 if (cameraFacing > uThreshold) {
                     float shift = (cameraFacing - uThreshold) / (1.0 - uThreshold);
                     vec3 irid = spectral(shift + uTime * ${CONFIG.iridSpeed.toFixed(1)} + vSpike);
                     color = mix(color, irid, shift);
                 }
 
-                // Low Poly Spike Glanz
                 if (vSpike > 0.1) {
                     float sideHighlight = dot(fNormal, vec3(0.3, 1.0, 0.3));
                     if(sideHighlight > 0.5) {
@@ -141,7 +148,7 @@
         `
     });
 
-    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), material);
+    const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
 
     window.addEventListener('mousemove', (e) => {
