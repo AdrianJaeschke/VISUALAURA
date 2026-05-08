@@ -2,18 +2,16 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Precision Fractal Sphere</title>
+    <title>Sticky Main Spike & Fractal Aura</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; cursor: crosshair !important; }
         canvas { display: block; }
-        
-        #ui-layer {
+        #ui {
             position: fixed; top: 20px; left: 20px; color: #00f0ff; 
             font-family: 'Courier New', monospace; font-size: 10px;
             background: rgba(0, 20, 30, 0.8); padding: 12px; border: 1px solid #00f0ff;
             pointer-events: none; z-index: 100;
         }
-
         #mouse-tag {
             position: fixed; pointer-events: none; color: #00f0ff;
             font-family: 'Courier New', monospace; font-size: 9px;
@@ -23,12 +21,11 @@
 </head>
 <body>
 
-<div id="ui-layer">
-    SYSTEM: ONLINE<br>
-    MODE: LOW_POLY_FRACTAL<br>
-    STATUS: IRIDISCENT_SPIKES
+<div id="ui">
+    SYSTEM: STICKY_DOCKING<br>
+    MAIN_SPIKE: ATTACHED<br>
+    FRACTALS: ACTIVE
 </div>
-
 <div id="mouse-tag">X: 0.00 | Y: 0.00</div>
 
 <script type="importmap">
@@ -39,15 +36,15 @@
     import * as THREE from 'three';
 
     // ==========================================
-    // ANPASSBARE PARAMETER (CONFIG)
+    // CONFIG: PARAMETER FÜR DOCKING & FRACTALS
     // ==========================================
     const CONFIG = {
         radius: 2.5,
-        detail: 30,             // Höherer Wert für feinere Spike-Flanken
-        spikeFreq: 18.0,        
-        spikeSharpness: 12.0,   
-        maxReach: 1.5,          
-        activationRange: 0.85,  
+        detail: 35,             // Höher für präzises Docking
+        mainSpikeSharpness: 30.0, // Höher = dünnerer Hauptspike
+        fractalFreq: 14.0,      
+        maxReach: 1.8,          // Wie weit die Nebenspikes gehen
+        dockingStrength: 5.5,   // Wie weit der Hauptspike zum Cursor "schießt"
         rotationSpeed: 0.003
     };
 
@@ -63,6 +60,7 @@
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
+            uMouseWorld: { value: new THREE.Vector3(0, 0, 0) },
             uIntensity: { value: 0 }
         },
         vertexShader: `
@@ -71,62 +69,60 @@
             varying vec3 vWorldPos;
             uniform float uTime;
             uniform vec2 uMouse;
+            uniform vec3 uMouseWorld;
             uniform float uIntensity;
 
             void main() {
                 vNormal = normalize(normalMatrix * normal);
                 vec4 worldPos = modelMatrix * vec4(position, 1.0);
                 vWorldPos = worldPos.xyz;
-                
-                // Blickrichtung von der Kamera zum Vertex im Weltraum
                 vViewDir = normalize(cameraPosition - vWorldPos);
 
+                // 1. HAUPTSPIKE LOGIK (STICKY DOCKING)
+                // Wir messen die Ausrichtung zum Cursor im Raum
+                vec3 dirToMouse = normalize(uMouseWorld - worldPos.xyz);
+                float alignment = max(0.0, dot(normalize(position), normalize(uMouseWorld)));
+                
+                // Hyperbel-Zuspitzung für den Hauptspike
+                float mainSpike = pow(alignment, ${CONFIG.mainSpikeSharpness.toFixed(1)});
+                vec3 dockingOffset = (uMouseWorld - worldPos.xyz) * mainSpike * uIntensity;
+
+                // 2. FRAKTALE NEBENSPIKES
                 vec4 screenPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 vec2 ndc = screenPos.xy / screenPos.w;
-                float dist = distance(ndc, uMouse);
-
-                // Fraktaler Noise-Ersatz
-                float f = sin(position.x * ${CONFIG.spikeFreq.toFixed(1)} + uTime) * 
-                          cos(position.y * ${CONFIG.spikeFreq.toFixed(1)} + uTime) *
-                          sin(position.z * 5.0);
+                float distNDC = distance(ndc, uMouse);
                 
-                float influence = smoothstep(${CONFIG.activationRange.toFixed(1)}, 0.0, dist);
-                float distortion = pow(max(0.0, f), ${CONFIG.spikeSharpness.toFixed(1)}) * 
-                                   influence * uIntensity * ${CONFIG.maxReach.toFixed(1)};
+                float f = sin(position.x * ${CONFIG.fractalFreq.toFixed(1)} + uTime) * 
+                          cos(position.y * ${CONFIG.fractalFreq.toFixed(1)} + uTime);
+                
+                float fractalMask = smoothstep(0.7, 0.0, distNDC);
+                float fractalSpikes = pow(max(0.0, f), 10.0) * fractalMask * uIntensity * ${CONFIG.maxReach.toFixed(1)};
 
-                vec3 newPos = position + normal * distortion;
+                // Kombination: Hauptspike zieht zum Cursor, Fraktale wachsen entlang der Normalen
+                vec3 newPos = position + dockingOffset + (normal * fractalSpikes);
+                
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
             }
         `,
         fragmentShader: `
-            varying vec3 vNormal;
             varying vec3 vViewDir;
             varying vec3 vWorldPos;
             uniform float uTime;
 
             void main() {
-                // Präzises Low-Poly Face-Normal
                 vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-                
-                // Dot-Produkt: 1.0 wenn Fläche direkt zur Kamera schaut, 0.0 wenn 90 Grad
                 float cameraFacing = dot(fNormal, vViewDir);
                 
                 vec3 color;
-                
-                // Schwellenwert für den Iridiszenz-Verlauf (ca. 25-30 Grad)
-                if (cameraFacing > 0.88) {
-                    // Zeitbasierter Farbwechsel zwischen Cyan und Violett
-                    float hueShift = sin(uTime * 3.0 + cameraFacing * 5.0) * 0.5 + 0.5;
-                    vec3 glowColor = mix(vec3(0.0, 1.0, 1.0), vec3(0.5, 0.0, 1.0), hueShift);
-                    
-                    // Sanfter Verlauf basierend auf der exakten Ausrichtung zur Kamera
-                    color = mix(vec3(1.0), glowColor, smoothstep(0.88, 1.0, cameraFacing));
+                // Iridiszenz auf den Flächen, die zur Kamera schauen (25 Grad Check)
+                if (cameraFacing > 0.906) {
+                    float hue = sin(uTime * 3.0 + cameraFacing * 10.0) * 0.5 + 0.5;
+                    color = mix(vec3(0.0, 1.0, 1.0), vec3(0.6, 0.0, 1.0), hue);
+                    color = mix(color, vec3(1.0), smoothstep(0.95, 1.0, cameraFacing)); // Glanz-Spitze
                 } else {
-                    // Klassisches Zebra-Muster für die Seitenflächen
-                    float stripes = step(0.15, sin(vWorldPos.y * 15.0 + uTime * 2.0));
+                    float stripes = step(0.1, sin(vWorldPos.y * 15.0 + uTime * 2.0));
                     color = vec3(stripes);
                 }
-                
                 gl_FragColor = vec4(color, 1.0);
             }
         `
@@ -135,17 +131,29 @@
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), material);
     scene.add(mesh);
 
+    // --- TRACKING & DOCKING LOGIC ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // Mathematische Ebene für das Sticky-Ziel
+    const intersectPoint = new THREE.Vector3();
     const mouseTag = document.getElementById('mouse-tag');
 
     window.addEventListener('mousemove', (e) => {
-        const x = (e.clientX / window.innerWidth) * 2 - 1;
-        const y = -(e.clientY / window.innerHeight) * 2 + 1;
-        material.uniforms.uMouse.value.set(x, y);
+        mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        
+        // Raycast für die Sticky-Position im 3D Raum
+        raycaster.setFromCamera(mouse, camera);
+        raycaster.ray.intersectPlane(plane, intersectPoint);
+        
+        material.uniforms.uMouse.value.copy(mouse);
+        material.uniforms.uMouseWorld.value.copy(intersectPoint);
         material.uniforms.uIntensity.value = 1.0;
 
+        // Cursor Label
         mouseTag.style.left = (e.clientX + 15) + 'px';
         mouseTag.style.top = (e.clientY + 15) + 'px';
-        mouseTag.innerText = `X: ${x.toFixed(2)} | Y: ${y.toFixed(2)}`;
+        mouseTag.innerText = `DOCKING_X: ${mouse.x.toFixed(2)} | Y: ${mouse.y.toFixed(2)}`;
     });
 
     function animate() {
