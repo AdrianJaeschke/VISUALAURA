@@ -4,15 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stachel-Magnet-Sphäre</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; cursor: crosshair; }
-        canvas { display: block; }
-        #ui-hint {
-            position: fixed; top: 20px; left: 20px; color: #00f0ff; 
-            font-family: 'Courier New', monospace; pointer-events: none;
-            background: rgba(0, 240, 255, 0.1); padding: 10px; border-radius: 5px;
-        }
-    </style>
+   <style>
+    /* Der Cursor wird hier für den gesamten Screen und das Canvas erzwungen */
+    body, html { 
+        margin: 0; 
+        padding: 0;
+        overflow: hidden; 
+        background: #000; 
+        cursor: crosshair !important; /* Erzwingt das Fadenkreuz */
+    }
+    
+    canvas { 
+        display: block; 
+        cursor: crosshair !important; /* Sicherstellung für das WebGL-Element */
+    }
+
+    #ui-hint {
+        position: fixed; 
+        top: 20px; 
+        left: 20px; 
+        color: #00f0ff; 
+        font-family: 'Courier New', monospace; 
+        pointer-events: none;
+        background: rgba(0, 240, 255, 0.1); 
+        padding: 10px; 
+        border-radius: 5px;
+        z-index: 100;
+    }
+</style>
 </head>
 <body>
 <div id="ui-hint">MAGNET-ZONE: 75% | STATUS: BEREIT</div>
