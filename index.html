@@ -108,9 +108,9 @@
     // CONFIG AUS DER VORIGEN LISTE
     const CONFIG = {
         radius: 2.5,
-        detail: 25,
+        detail: 20,
         spikeSharpness: 25.0,
-        maxReach: 0.9,
+        maxReach: 0.4,
         stripeDensity: 15.0,
         viewAngle: 45,
         rotationSpeed: 0.005,
@@ -228,7 +228,7 @@
         });
 
         function activateGyro() {
-            sensorLabel.innerText = "Gyro + Touch";
+            sensorLabel.innerText = "KLICKEN UND HANDY BEWEGEN";
             overlay.style.opacity = "0";
             setTimeout(() => overlay.remove(), 500);
             window.addEventListener('deviceorientation', (e) => {
