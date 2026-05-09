@@ -3,36 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magic Zebra - Stable Gyro</title>
+    <title>Magic Zebra Shield - Gyro & Wire</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
-        canvas { display: block; }
-        
-        #ui-overlay {
-            position: fixed; inset: 0;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 2000; background: rgba(0,0,0,0.7);
-            font-family: 'Courier New', monospace;
+        #ui {
+            position: fixed; top: 20px; left: 20px; color: #00f0ff; 
+            font-family: monospace; font-size: 11px; z-index: 100; pointer-events: none;
         }
-
-        .btn-container { display: flex; gap: 15px; }
-
+        #overlay {
+            position: fixed; inset: 0; background: #000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000;
+            color: #00f0ff; font-family: monospace;
+        }
+        .btn-container { display: flex; gap: 15px; margin-top: 20px; }
         button {
-            padding: 20px 30px; background: #000; border: 2px solid #00f0ff;
-            color: #00f0ff; text-transform: uppercase; letter-spacing: 2px;
-            cursor: pointer; pointer-events: auto; font-weight: bold;
+            padding: 15px 25px; background: rgba(0,0,0,0.6); border: 1px solid #00f0ff;
+            color: #00f0ff; cursor: pointer; font-family: monospace; text-transform: uppercase;
+            letter-spacing: 1px;
         }
-
-        #status-text { color: #00f0ff; margin-bottom: 20px; text-align: center; }
+        button:hover { background: rgba(0,240,255,0.2); }
     </style>
 </head>
 <body>
 
-<div id="ui-overlay">
-    <div id="status-text">SHIELD INTERFACE v3.0<br>INITIALIZATION REQUIRED</div>
+<div id="ui">SYSTEM: ACTIVE<br>MODE: <span id="mode">TOUCH</span></div>
+
+<div id="overlay">
+    <h2 style="letter-spacing: 5px;">SHIELD INTERFACE</h2>
     <div class="btn-container">
-        <button id="btn-touch">Touch</button>
-        <button id="btn-gyro">Gyroscope</button>
+        <button id="btn-touch">Start Touch</button>
+        <button id="btn-gyro">Start Gyro</button>
     </div>
 </div>
 
@@ -45,11 +45,11 @@
 
     const CONFIG = {
         radius: 2.5,
-        ghostRadius: 2.9,
-        detail: 2, 
-        stripeDensity: 11.0,
-        shieldSize: 0.52,
-        shieldSharpness: 0.18,
+        ghostRadius: 2.85,
+        detail: 2,                // Low Poly für sichtbare Dreiecke
+        stripeDensity: 11.0,      // Zebra-Streifen Dichte
+        shieldSize: 0.55,
+        shieldSharpness: 0.2,     // Smoother Übergang der Maske
         lerpFactor: 0.1
     };
 
@@ -59,13 +59,13 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
     let targetInput = new THREE.Vector2(0, 0);
     let currentInput = new THREE.Vector2(0, 0);
 
-    // --- SHADER ---
+    // --- SHADER SHARED VERTEX ---
     const sharedVert = `
         varying vec3 vNormal;
         varying vec3 vLocalPos;
@@ -79,6 +79,7 @@
         }
     `;
 
+    // --- INNER ZEBRA SHADER ---
     const zebraMat = new THREE.ShaderMaterial({
         uniforms: { uTime: { value: 0 } },
         vertexShader: sharedVert,
@@ -87,13 +88,20 @@
             varying vec3 vLocalPos;
             uniform float uTime;
             void main() {
-                float s = step(0.0, sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 3.0));
-                float l = dot(vNormal, vec3(0.5, 1.0, 0.5)) * 0.5 + 0.5;
-                gl_FragColor = vec4(mix(vec3(0.0), vec3(1.0), s) * l, 1.0);
+                // Zebra-Muster basierend auf lokaler Y-Achse
+                float pattern = sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 3.0);
+                float zebra = step(0.0, pattern);
+                
+                // Flat Shading Simulation
+                float light = dot(vNormal, vec3(0.5, 1.0, 0.2)) * 0.5 + 0.5;
+                vec3 col = mix(vec3(0.05), vec3(1.0), zebra) * light;
+                
+                gl_FragColor = vec4(col, 1.0);
             }
         `
     });
 
+    // --- OUTER MAGIC SHIELD SHADER ---
     const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
@@ -110,24 +118,36 @@
             uniform float uTime;
             uniform vec2 uMouse;
             uniform float uAspect;
+
             float magic(vec3 p) {
-                return sin(p.x + sin(p.y + uTime)) * cos(p.z + uTime);
+                p *= 1.5;
+                float v = sin(p.x + sin(p.y + uTime)) + sin(p.y + sin(p.z + uTime)) + sin(p.z + sin(p.x + uTime));
+                return v * 0.5 + 0.5;
             }
+
             void main() {
-                vec2 d = vScreenPos - uMouse;
-                d.x *= uAspect;
-                float m = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, length(d));
-                if (m < 0.01) discard;
-                float n = magic(vLocalPos + uTime * 0.3);
-                vec3 rb = 0.5 + 0.5 * cos(6.28 * (vec3(1,1,1) * (n + uTime * 0.2) + vec3(0, 0.33, 0.67)));
-                gl_FragColor = vec4(rb + pow(1.0-abs(vNormal.z), 2.0)*0.4, m);
+                vec2 diff = vScreenPos - uMouse;
+                diff.x *= uAspect;
+                float dist = length(diff);
+                float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
+                
+                if (mask < 0.01) discard;
+
+                float pattern = magic(vLocalPos + uTime * 0.2);
+                vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (pattern + uTime * 0.1) + vec3(0, 0.33, 0.67)));
+                
+                // Kantenleuchten
+                float edge = pow(1.0 - abs(vNormal.z), 2.0);
+                vec3 finalCol = rainbow + edge * 0.4;
+                
+                gl_FragColor = vec4(finalCol, mask);
             }
         `
     });
 
-    // MESHES
+    // --- GEOMETRY & MESHES ---
     const geo = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
-    geo.computeFlatVertexNormals();
+    geo.computeFlatVertexNormals(); // Wichtig für harten Facetten-Look
     const inner = new THREE.Mesh(geo, zebraMat);
     scene.add(inner);
 
@@ -136,63 +156,80 @@
     const ghost = new THREE.Mesh(ghostGeo, shieldMat);
     scene.add(ghost);
 
-    // INPUT FUNCTIONS
-    const updateCoord = (x, y) => {
+    const wire = new THREE.Mesh(ghostGeo, new THREE.MeshBasicMaterial({ 
+        color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.15 
+    }));
+    scene.add(wire);
+
+    // --- INPUT LOGIC ---
+    const updateInput = (x, y) => {
         targetInput.x = (x / window.innerWidth) * 2 - 1;
         targetInput.y = -(y / window.innerHeight) * 2 + 1;
     };
 
-    const setupInteraction = () => {
-        document.getElementById('ui-overlay').style.display = 'none';
-        window.addEventListener('mousemove', (e) => updateCoord(e.clientX, e.clientY));
-        window.addEventListener('touchmove', (e) => {
-            updateCoord(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
+    const hideOverlay = () => {
+        document.getElementById('overlay').style.display = 'none';
     };
 
-    // BUTTON CLICKS
-    document.getElementById('btn-touch').onclick = setupInteraction;
+    document.getElementById('btn-touch').onclick = () => {
+        hideOverlay();
+        window.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            updateInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        window.addEventListener('mousemove', (e) => updateInput(e.clientX, e.clientY));
+    };
 
     document.getElementById('btn-gyro').onclick = async () => {
-        try {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const permission = await DeviceOrientationEvent.requestPermission();
-                if (permission === 'granted') {
-                    window.addEventListener('deviceorientation', (e) => {
-                        targetInput.x = (e.gamma / 45);
-                        targetInput.y = (e.beta - 45) / 45;
-                    });
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            try {
+                const res = await DeviceOrientationEvent.requestPermission();
+                if (res === 'granted') {
+                    activateGyro();
                 }
-            } else {
-                window.addEventListener('deviceorientation', (e) => {
-                    targetInput.x = (e.gamma / 45);
-                    targetInput.y = (e.beta - 45) / 45;
-                });
-            }
-        } catch (e) {
-            console.error("Gyro not supported");
+            } catch (e) { console.error(e); }
+        } else {
+            activateGyro();
         }
-        setupInteraction();
     };
 
+    function activateGyro() {
+        document.getElementById('mode').innerText = 'GYRO';
+        window.addEventListener('deviceorientation', (e) => {
+            // Mapping für sanfte Steuerung
+            targetInput.x = (e.gamma / 45); 
+            targetInput.y = (e.beta - 45) / 45;
+        });
+        hideOverlay();
+    }
+
+    // --- ANIMATION LOOP ---
     function animate() {
         requestAnimationFrame(animate);
         currentInput.lerp(targetInput, CONFIG.lerpFactor);
-        const t = performance.now() * 0.001;
-        zebraMat.uniforms.uTime.value = t;
-        shieldMat.uniforms.uTime.value = t;
+
+        const time = performance.now() * 0.001;
+        
+        zebraMat.uniforms.uTime.value = time;
+        shieldMat.uniforms.uTime.value = time;
         shieldMat.uniforms.uMouse.value.copy(currentInput);
+
         inner.rotation.y += 0.005;
+        
+        // Schild neigt sich zum Input-Punkt
         ghost.rotation.set(-currentInput.y * 0.5, currentInput.x * 0.5, 0);
+        wire.rotation.copy(ghost.rotation);
+
         renderer.render(scene, camera);
     }
     animate();
 
     window.onresize = () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        const aspect = window.innerWidth / window.innerHeight;
+        camera.aspect = aspect;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        shieldMat.uniforms.uAspect.value = camera.aspect;
+        shieldMat.uniforms.uAspect.value = aspect;
     };
 </script>
 </body>
