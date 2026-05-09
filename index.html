@@ -2,37 +2,29 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere Pro - Fixed Visibility</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
+    <title>Shield Sphere - Final Stable</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #050505; touch-action: none; }
         canvas { display: block; }
         #ui {
-            position: fixed; top: 30px; left: 30px; color: #00f0ff; 
-            font-family: "Boldonse", sans-serif; font-size: 12px;
-            pointer-events: none; z-index: 100; text-transform: uppercase;
-            letter-spacing: 2px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+            position: fixed; top: 20px; left: 20px; color: #00f0ff; 
+            font-family: sans-serif; font-size: 11px; z-index: 10;
+            text-transform: uppercase; letter-spacing: 1px; pointer-events: none;
         }
         #overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
             display: flex; justify-content: center; align-items: center; z-index: 1000;
         }
-        #start-btn {
-            padding: 20px 40px; background: none; border: 2px solid #00f0ff;
-            color: #00f0ff; font-family: "Boldonse", sans-serif; cursor: pointer;
-            text-transform: uppercase; letter-spacing: 4px;
+        button {
+            padding: 15px 30px; background: none; border: 1px solid #00f0ff;
+            color: #00f0ff; cursor: pointer; letter-spacing: 2px;
         }
     </style>
 </head>
 <body>
 
-<div id="ui">SYSTEM: ONLINE<br>SENSOR: <span id="status">STABLE</span></div>
-
-<div id="overlay">
-    <button id="start-btn">ACTIVATE SYSTEM</button>
-</div>
+<div id="ui">SYSTEM: ACTIVE<br>SHIELD: <span id="status">WAITING</span></div>
+<div id="overlay"><button id="start">INITIALIZE</button></div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -41,19 +33,17 @@
 <script type="module">
     import * as THREE from 'three';
 
+    // --- PARAMETER LISTE ---
     const CONFIG = {
         radius: 2.5,
-        ghostRadius: 3.0,
-        detail: 2,
-        stripeDensity: 12.0,
-        viewAngle: 28,
+        ghostRadius: 3.1,         // Schutzschild etwas größer
+        detail: 2,                // Wie fein das Gitter ist (IMG_6940.jpg Style)
+        stripeDensity: 12.0,      // Wie viele Zebrastreifen
+        shieldSize: 0.5,          // Größe der runden Maske
+        shieldSharpness: 0.1,     // Weichheit der Kante (0.01 = hart)
+        shieldOpacity: 1.0,       // Deckkraft (keine Transparenz gewünscht)
         rotationSpeed: 0.005,
-        lerpFactor: 0.1,
-        ghostRotationStrength: 1.5,
-        // SCHILD PARAMETER (Voll deckend)
-        shieldSize: 2,         
-        shieldSharpness: 0.02,    
-        shieldOpacity: 1.0        
+        lerpFactor: 0.1
     };
 
     const scene = new THREE.Scene();
@@ -82,26 +72,24 @@
         }
     `;
 
+    // INNERE KUGEL (ZEBRA)
     const innerMat = new THREE.ShaderMaterial({
-        uniforms: {
-            uTime: { value: 0 },
-            uThreshold: { value: Math.cos(CONFIG.viewAngle * Math.PI / 180) }
-        },
+        uniforms: { uTime: { value: 0 } },
         vertexShader: sharedVert,
         fragmentShader: `
             varying vec3 vNormal;
             varying vec3 vLocalPos;
             uniform float uTime;
-            uniform float uThreshold;
             void main() {
                 float zebra = step(0.0, sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0));
                 vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
-                float switcher = step(uThreshold, vNormal.z);
-                gl_FragColor = vec4(mix(vec3(zebra), rainbow, switcher), 1.0);
+                float fresnel = pow(1.0 - dot(vNormal, vec3(0,0,1)), 3.0);
+                gl_FragColor = vec4(mix(vec3(zebra), rainbow, fresnel), 1.0);
             }
         `
     });
 
+    // SCHILD (MASKE & OUTLINE)
     const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
@@ -109,8 +97,8 @@
             uAspect: { value: window.innerWidth / window.innerHeight },
             uIsOutline: { value: false }
         },
-        transparent: true, // Erforderlich für die Maskierung
-        depthWrite: false, // Verhindert Z-Fighting
+        transparent: true,
+        depthWrite: false, 
         vertexShader: sharedVert,
         fragmentShader: `
             varying vec2 vScreenPos;
@@ -122,20 +110,18 @@
 
             void main() {
                 vec2 diff = vScreenPos - uMouse;
-                diff.x *= uAspect; 
+                diff.x *= uAspect; // RUNDE MASKE FIX
                 float dist = length(diff);
                 
-                // Maske ohne Discard für bessere Stabilität
                 float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
-                
+                if (mask < 0.01) discard;
+
                 vec3 color;
                 if (uIsOutline) {
-                    color = vec3(1.0);
+                    color = vec3(1.0); // Reinweißes Gitter
                 } else {
                     color = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
                 }
-
-                // Hier nutzen wir mask direkt als Alpha für deckende Flächen
                 gl_FragColor = vec4(color, mask * ${CONFIG.shieldOpacity});
             }
         `
@@ -154,52 +140,41 @@
     const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
     scene.add(shieldOutline);
 
-    const startBtn = document.getElementById('start-btn');
-    startBtn.onclick = async () => {
+    document.getElementById('start').onclick = () => {
         document.getElementById('overlay').style.display = 'none';
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const permission = await DeviceOrientationEvent.requestPermission();
-            if (permission === 'granted') window.addEventListener('deviceorientation', (e) => {
-                targetInput.x = (e.gamma / 45);
-                targetInput.y = (e.beta - 45) / 45;
-            });
-        } else {
-            window.addEventListener('mousemove', (e) => {
-                targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
-                targetInput.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            });
-        }
+        window.addEventListener('mousemove', (e) => {
+            targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
+            targetInput.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+        document.getElementById('status').innerText = 'READY';
     };
 
     function animate() {
         requestAnimationFrame(animate);
         currentInput.lerp(targetInput, CONFIG.lerpFactor);
 
-        innerMat.uniforms.uTime.value += 0.015;
-        shieldMat.uniforms.uTime.value += 0.015;
-        shieldOutlineMat.uniforms.uTime.value += 0.015;
+        innerMat.uniforms.uTime.value += 0.01;
+        shieldMat.uniforms.uTime.value += 0.01;
+        shieldOutlineMat.uniforms.uTime.value += 0.01;
 
         shieldMat.uniforms.uMouse.value.copy(currentInput);
         shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
 
         inner.rotation.y += CONFIG.rotationSpeed;
-        
-        const rotX = -currentInput.y * CONFIG.ghostRotationStrength;
-        const rotY = currentInput.x * CONFIG.ghostRotationStrength;
-        shieldFill.rotation.set(rotX, rotY, 0);
-        shieldOutline.rotation.set(rotX, rotY, 0);
+        shieldFill.rotation.set(-currentInput.y, currentInput.x, 0);
+        shieldOutline.rotation.set(-currentInput.y, currentInput.x, 0);
 
         renderer.render(scene, camera);
     }
     animate();
 
     window.onresize = () => {
-        const aspect = window.innerWidth / window.innerHeight;
-        camera.aspect = aspect;
+        const a = window.innerWidth / window.innerHeight;
+        camera.aspect = a;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        shieldMat.uniforms.uAspect.value = aspect;
-        shieldOutlineMat.uniforms.uAspect.value = aspect;
+        shieldMat.uniforms.uAspect.value = a;
+        shieldOutlineMat.uniforms.uAspect.value = a;
     };
 </script>
 </body>
