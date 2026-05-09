@@ -2,29 +2,30 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere - Gesture & Touch</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shield Sphere - Final Touch Fix</title>
     <style>
         body, html { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
         canvas { display: block; }
         #ui {
             position: fixed; top: 20px; left: 20px; color: #00f0ff; 
-            font-family: sans-serif; font-size: 11px; z-index: 10;
+            font-family: monospace; font-size: 11px; z-index: 10;
             text-transform: uppercase; letter-spacing: 1px; pointer-events: none;
         }
         #overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
             display: flex; justify-content: center; align-items: center; z-index: 1000;
         }
         button {
-            padding: 20px 40px; background: none; border: 2px solid #00f0ff;
-            color: #00f0ff; cursor: pointer; letter-spacing: 3px; font-weight: bold;
+            padding: 15px 30px; background: #000; border: 1px solid #00f0ff;
+            color: #00f0ff; cursor: pointer; letter-spacing: 2px; font-family: monospace;
         }
     </style>
 </head>
 <body>
 
-<div id="ui">SYSTEM: READY<br>INPUT: <span id="status">TOUCH/MOUSE</span></div>
-<div id="overlay"><button id="start">INITIALIZE SHIELD</button></div>
+<div id="ui">SYSTEM: ACTIVE<br>INPUT: <span id="status">WAITING FOR TOUCH</span></div>
+<div id="overlay"><button id="start">INITIALIZE SYSTEM</button></div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -33,24 +34,26 @@
 <script type="module">
     import * as THREE from 'three';
 
+    // --- PARAMETER LISTE ---
     const CONFIG = {
         radius: 2.5,
-        ghostRadius: 3.05,
-        detail: 2,
-        stripeDensity: 12.0,
-        shieldSize: 0.55,          // Radius des Sichtfensters
-        shieldSharpness: 0.05,     // Härte der Kante
-        shieldOpacity: 1.0,        // Deckkraft
-        lerpFactor: 0.15           // Wie schnell das Schild dem Finger folgt
+        ghostRadius: 3.1,         
+        detail: 3,                
+        stripeDensity: 12.0,      
+        shieldSize: 0.6,          
+        shieldSharpness: 0.08,    
+        shieldOpacity: 1.0,       
+        rotationSpeed: 0.005,
+        lerpFactor: 0.2           
     };
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 8;
+    camera.position.z = 7; // Etwas näher ran
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
     let targetInput = new THREE.Vector2(0, 0);
@@ -63,7 +66,8 @@
         void main() {
             vNormal = normalize(normalMatrix * normal);
             vLocalPos = position;
-            vec4 pPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+            vec4 pPos = projectionMatrix * mvPos;
             vScreenPos = pPos.xy / pPos.w;
             gl_Position = pPos;
         }
@@ -79,8 +83,8 @@
             void main() {
                 float zebra = step(0.0, sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0));
                 vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
-                float fres = pow(1.0 - abs(vNormal.z), 2.0);
-                gl_FragColor = vec4(mix(vec3(zebra), rainbow, fres), 1.0);
+                float fresnel = pow(1.0 - abs(vNormal.z), 1.5);
+                gl_FragColor = vec4(mix(vec3(zebra), rainbow, fresnel), 1.0);
             }
         `
     });
@@ -93,8 +97,7 @@
             uIsOutline: { value: false }
         },
         transparent: true,
-        depthTest: true,
-        depthWrite: false, // Wichtig für Überlagerung
+        depthWrite: false, // Wichtig für Sichtbarkeit vor der Kugel
         vertexShader: sharedVert,
         fragmentShader: `
             varying vec2 vScreenPos;
@@ -107,9 +110,11 @@
                 vec2 diff = vScreenPos - uMouse;
                 diff.x *= uAspect;
                 float dist = length(diff);
+                
+                // Sanfterer Übergang, damit es nicht sofort verschwindet
                 float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
                 
-                if (mask < 0.01) discard;
+                if (mask < 0.02) discard;
 
                 vec3 col = uIsOutline ? vec3(1.0) : 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
                 gl_FragColor = vec4(col, mask * ${CONFIG.shieldOpacity});
@@ -122,31 +127,27 @@
 
     const ghostGeo = new THREE.IcosahedronGeometry(CONFIG.ghostRadius, CONFIG.detail);
     const shieldFill = new THREE.Mesh(ghostGeo, shieldMat);
-    scene.add(shieldFill);
-
     const shieldOutlineMat = shieldMat.clone();
     shieldOutlineMat.uniforms.uIsOutline.value = true;
     shieldOutlineMat.wireframe = true;
     const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
+
+    scene.add(shieldFill);
     scene.add(shieldOutline);
 
-    // --- INTERAKTION (TOUCH & MAUS) ---
-    function updateInput(x, y) {
+    // --- TOUCH & GESTEN LOGIK ---
+    const handleInput = (x, y) => {
         targetInput.x = (x / window.innerWidth) * 2 - 1;
         targetInput.y = -(y / window.innerHeight) * 2 + 1;
-    }
+    };
 
     document.getElementById('start').onclick = () => {
         document.getElementById('overlay').style.display = 'none';
+        document.getElementById('status').innerText = 'TOUCH ACTIVE';
         
-        // Maus
-        window.addEventListener('mousemove', (e) => updateInput(e.clientX, e.clientY));
-        
-        // Touch (Gesten)
-        window.addEventListener('touchstart', (e) => updateInput(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('mousemove', (e) => handleInput(e.clientX, e.clientY));
         window.addEventListener('touchmove', (e) => {
-            e.preventDefault(); 
-            updateInput(e.touches[0].clientX, e.touches[0].clientY);
+            handleInput(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
     };
 
@@ -162,11 +163,11 @@
         shieldMat.uniforms.uMouse.value.copy(currentInput);
         shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
 
-        inner.rotation.y += 0.005;
+        inner.rotation.y += CONFIG.rotationSpeed;
         
-        // Das Schild neigt sich zum Finger
-        shieldFill.rotation.set(-currentInput.y * 0.5, currentInput.x * 0.5, 0);
-        shieldOutline.rotation.set(-currentInput.y * 0.5, currentInput.x * 0.5, 0);
+        // Das Schild folgt dem Touch-Punkt auf der Kugeloberfläche
+        shieldFill.rotation.set(-currentInput.y * 0.8, currentInput.x * 0.8, 0);
+        shieldOutline.rotation.set(-currentInput.y * 0.8, currentInput.x * 0.8, 0);
 
         renderer.render(scene, camera);
     }
