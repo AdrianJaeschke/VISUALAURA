@@ -2,9 +2,9 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere - Final Stable</title>
+    <title>Shield Sphere - Gesture & Touch</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #050505; touch-action: none; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
         canvas { display: block; }
         #ui {
             position: fixed; top: 20px; left: 20px; color: #00f0ff; 
@@ -12,19 +12,19 @@
             text-transform: uppercase; letter-spacing: 1px; pointer-events: none;
         }
         #overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
             display: flex; justify-content: center; align-items: center; z-index: 1000;
         }
         button {
-            padding: 15px 30px; background: none; border: 1px solid #00f0ff;
-            color: #00f0ff; cursor: pointer; letter-spacing: 2px;
+            padding: 20px 40px; background: none; border: 2px solid #00f0ff;
+            color: #00f0ff; cursor: pointer; letter-spacing: 3px; font-weight: bold;
         }
     </style>
 </head>
 <body>
 
-<div id="ui">SYSTEM: ACTIVE<br>SHIELD: <span id="status">WAITING</span></div>
-<div id="overlay"><button id="start">INITIALIZE</button></div>
+<div id="ui">SYSTEM: READY<br>INPUT: <span id="status">TOUCH/MOUSE</span></div>
+<div id="overlay"><button id="start">INITIALIZE SHIELD</button></div>
 
 <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -33,17 +33,15 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- PARAMETER LISTE ---
     const CONFIG = {
         radius: 2.5,
-        ghostRadius: 3.1,         // Schutzschild etwas größer
-        detail: 2,                // Wie fein das Gitter ist (IMG_6940.jpg Style)
-        stripeDensity: 12.0,      // Wie viele Zebrastreifen
-        shieldSize: 0.5,          // Größe der runden Maske
-        shieldSharpness: 0.1,     // Weichheit der Kante (0.01 = hart)
-        shieldOpacity: 1.0,       // Deckkraft (keine Transparenz gewünscht)
-        rotationSpeed: 0.005,
-        lerpFactor: 0.1
+        ghostRadius: 3.05,
+        detail: 2,
+        stripeDensity: 12.0,
+        shieldSize: 0.55,          // Radius des Sichtfensters
+        shieldSharpness: 0.05,     // Härte der Kante
+        shieldOpacity: 1.0,        // Deckkraft
+        lerpFactor: 0.15           // Wie schnell das Schild dem Finger folgt
     };
 
     const scene = new THREE.Scene();
@@ -65,14 +63,12 @@
         void main() {
             vNormal = normalize(normalMatrix * normal);
             vLocalPos = position;
-            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-            vec4 pPos = projectionMatrix * mvPos;
+            vec4 pPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             vScreenPos = pPos.xy / pPos.w;
             gl_Position = pPos;
         }
     `;
 
-    // INNERE KUGEL (ZEBRA)
     const innerMat = new THREE.ShaderMaterial({
         uniforms: { uTime: { value: 0 } },
         vertexShader: sharedVert,
@@ -83,13 +79,12 @@
             void main() {
                 float zebra = step(0.0, sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0));
                 vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
-                float fresnel = pow(1.0 - dot(vNormal, vec3(0,0,1)), 3.0);
-                gl_FragColor = vec4(mix(vec3(zebra), rainbow, fresnel), 1.0);
+                float fres = pow(1.0 - abs(vNormal.z), 2.0);
+                gl_FragColor = vec4(mix(vec3(zebra), rainbow, fres), 1.0);
             }
         `
     });
 
-    // SCHILD (MASKE & OUTLINE)
     const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
@@ -98,7 +93,8 @@
             uIsOutline: { value: false }
         },
         transparent: true,
-        depthWrite: false, 
+        depthTest: true,
+        depthWrite: false, // Wichtig für Überlagerung
         vertexShader: sharedVert,
         fragmentShader: `
             varying vec2 vScreenPos;
@@ -107,22 +103,16 @@
             uniform float uAspect;
             uniform float uTime;
             uniform bool uIsOutline;
-
             void main() {
                 vec2 diff = vScreenPos - uMouse;
-                diff.x *= uAspect; // RUNDE MASKE FIX
+                diff.x *= uAspect;
                 float dist = length(diff);
-                
                 float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
+                
                 if (mask < 0.01) discard;
 
-                vec3 color;
-                if (uIsOutline) {
-                    color = vec3(1.0); // Reinweißes Gitter
-                } else {
-                    color = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
-                }
-                gl_FragColor = vec4(color, mask * ${CONFIG.shieldOpacity});
+                vec3 col = uIsOutline ? vec3(1.0) : 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
+                gl_FragColor = vec4(col, mask * ${CONFIG.shieldOpacity});
             }
         `
     });
@@ -140,29 +130,43 @@
     const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
     scene.add(shieldOutline);
 
+    // --- INTERAKTION (TOUCH & MAUS) ---
+    function updateInput(x, y) {
+        targetInput.x = (x / window.innerWidth) * 2 - 1;
+        targetInput.y = -(y / window.innerHeight) * 2 + 1;
+    }
+
     document.getElementById('start').onclick = () => {
         document.getElementById('overlay').style.display = 'none';
-        window.addEventListener('mousemove', (e) => {
-            targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
-            targetInput.y = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-        document.getElementById('status').innerText = 'READY';
+        
+        // Maus
+        window.addEventListener('mousemove', (e) => updateInput(e.clientX, e.clientY));
+        
+        // Touch (Gesten)
+        window.addEventListener('touchstart', (e) => updateInput(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchmove', (e) => {
+            e.preventDefault(); 
+            updateInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
     };
 
     function animate() {
         requestAnimationFrame(animate);
         currentInput.lerp(targetInput, CONFIG.lerpFactor);
 
-        innerMat.uniforms.uTime.value += 0.01;
-        shieldMat.uniforms.uTime.value += 0.01;
-        shieldOutlineMat.uniforms.uTime.value += 0.01;
+        const time = performance.now() * 0.001;
+        innerMat.uniforms.uTime.value = time;
+        shieldMat.uniforms.uTime.value = time;
+        shieldOutlineMat.uniforms.uTime.value = time;
 
         shieldMat.uniforms.uMouse.value.copy(currentInput);
         shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
 
-        inner.rotation.y += CONFIG.rotationSpeed;
-        shieldFill.rotation.set(-currentInput.y, currentInput.x, 0);
-        shieldOutline.rotation.set(-currentInput.y, currentInput.x, 0);
+        inner.rotation.y += 0.005;
+        
+        // Das Schild neigt sich zum Finger
+        shieldFill.rotation.set(-currentInput.y * 0.5, currentInput.x * 0.5, 0);
+        shieldOutline.rotation.set(-currentInput.y * 0.5, currentInput.x * 0.5, 0);
 
         renderer.render(scene, camera);
     }
