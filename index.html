@@ -2,57 +2,18 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Dual Sphere Hybrid - Boldonse Edition</title>
-    
+    <title>Shield Sphere Hybrid</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
-
     <style>
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
-            background: #000; 
-        }
-        
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
         canvas { display: block; }
-        
         #ui {
-            position: fixed; 
-            top: 30px; 
-            left: 30px; 
-            color: #00f0ff; 
-            font-family: "Boldonse", system-ui; 
-            font-size: 13px;
-            pointer-events: none; 
-            z-index: 100; 
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            line-height: 1.6;
-            text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
-        }
-
-        #mobile-overlay {
-            position: fixed; 
-            inset: 0; 
-            display: none; 
-            flex-direction: column; 
-            justify-content: center; 
-            align-items: center; 
-            z-index: 1000;
-        }
-
-        #start-btn {
-            padding: 15px 30px; 
-            background: transparent; 
-            border: 1px solid #00f0ff;
-            color: #00f0ff; 
-            font-family: "Boldonse", system-ui;
-            font-size: 16px; 
-            cursor: pointer; 
-            text-transform: uppercase;
-            letter-spacing: 4px;
+            position: fixed; top: 30px; left: 30px; color: #00f0ff; 
+            font-family: "Boldonse", system-ui; font-size: 13px;
+            pointer-events: none; z-index: 100; text-transform: uppercase;
+            letter-spacing: 2px; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
         }
     </style>
 </head>
@@ -60,11 +21,7 @@
 
 <div id="ui">
     <span id="device-mode">System: Detecting</span><br>
-    <span id="sensor-status">Sensor: Touch Active</span>
-</div>
-
-<div id="mobile-overlay">
-    <button id="start-btn">Activate Motion</button>
+    <span id="sensor-status">Sensor: Active</span>
 </div>
 
 <script type="importmap">
@@ -74,35 +31,20 @@
 <script type="module">
     import * as THREE from 'three';
 
-    // --- CONFIGURATION ---
     const CONFIG = {
         radius: 2.5,
+        ghostRadius: 3.0, // Größe auf 3 erhöht
         detail: 2,
         spikeSharpness: 25.0,
         maxReach: 1.9,
         stripeDensity: 15.0,
         viewAngle: 25,
         rotationSpeed: 0.005,
-        gyroSensitivity: 2.2,
         lerpFactor: 0.05,
-        
-        // Gradient & Spike Params
-        gradientWidth: 0.5,
-        gradientStart: 0.25,
-        spikeGradientVisibility: 0.9,
-        
-        // Ghost Sphere Params
-        ghostRadius: 4,          // Minimal größer für Sichtbarkeit über dem Zebra
-        ghostRotationStrength: 1.8,  // Intensität der Maus-Rotation
-        outlineOpacity: 1,
-        showSpikesGhost: false
+        ghostRotationStrength: 1.2,
+        shieldRadius: 0.8 // Radius des sichtbaren Bereichs um die Maus
     };
 
-    const angleThreshold = Math.cos(CONFIG.viewAngle * (Math.PI / 180));
-    let targetInput = { x: 0, y: 0 };
-    let currentInput = { x: 0, y: 0 };
-
-    // --- THREE.JS SETUP ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 8;
@@ -111,178 +53,140 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
-    // --- SHADER: INITIAL SPHERE (Zebra + Spikes) ---
-    const mainVertexShader = `
-        varying vec3 vNormal;
-        varying vec3 vWorldPos;
-        varying float vSpike;
-        uniform float uTime;
-        uniform vec2 uMouse;
+    let targetInput = { x: 0, y: 0 };
+    let currentInput = { x: 0, y: 0 };
 
-        void main() {
-            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-            vec4 pPos = projectionMatrix * mvPos;
-            vec2 ndc = pPos.xy / pPos.w;
-            float d = distance(ndc, uMouse);
-            float influence = smoothstep(0.7, 0.0, d);
-            float noise = sin(position.x * 10.0) * cos(position.y * 10.0 + uTime);
-            vSpike = pow(max(0.0, influence + noise * 0.3), ${CONFIG.spikeSharpness.toFixed(1)});
-            
-            vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach.toFixed(1)};
-            vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
-            vWorldPos = worldPos.xyz;
-            vNormal = normalize(normalMatrix * normal);
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-    `;
-
-    const mainFragmentShader = `
-        varying vec3 vNormal;
-        varying vec3 vWorldPos;
-        varying float vSpike;
-        uniform float uTime;
-        uniform float uThreshold;
-        uniform float uGradientStart;
-        uniform float uSpikeVis;
-
-        vec3 spectral(float t) {
-            return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
-        }
-
-        void main() {
-            vec3 fNormal = normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
-            vec3 viewDir = normalize(cameraPosition - vWorldPos);
-            float cameraFacing = dot(fNormal, viewDir);
-            
-            float stripePattern = sin(vWorldPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0);
-            float zebra = step(0.0, stripePattern); 
-            
-            float colorShift = cameraFacing * 0.4 + uTime * 0.2 + vSpike * 0.5;
-            vec3 rainbow = spectral(colorShift);
-            
-            float switchPoint = uThreshold - uGradientStart;
-            float switcher = step(switchPoint, cameraFacing + (vSpike * 0.2));
-            
-            vec3 color = mix(vec3(zebra), rainbow, switcher);
-
-            if (vSpike > 0.05) {
-                float spikeRainbow = step(0.1, vSpike * uSpikeVis);
-                color = mix(color, spectral(vSpike + uTime), spikeRainbow * switcher);
+    // --- SHADER: INITIAL SPHERE (Zebra) ---
+    const mainMat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 }, uMouse: { value: new THREE.Vector2(0, 0) }, uThreshold: { value: Math.cos(CONFIG.viewAngle * Math.PI / 180) } },
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec3 vWorldPos;
+            varying float vSpike;
+            uniform float uTime;
+            uniform vec2 uMouse;
+            void main() {
+                vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                vec4 pPos = projectionMatrix * mvPos;
+                vec2 ndc = pPos.xy / pPos.w;
+                float d = distance(ndc, uMouse);
+                float influence = smoothstep(0.7, 0.0, d);
+                vSpike = pow(max(0.0, influence + sin(position.x * 10.0) * 0.3), ${CONFIG.spikeSharpness});
+                vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach};
+                vNormal = normalize(normalMatrix * normal);
+                vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
+                vWorldPos = worldPos.xyz;
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
             }
-            gl_FragColor = vec4(color, 1.0);
-        }
-    `;
+        `,
+        fragmentShader: `
+            varying vec3 vNormal;
+            varying vec3 vWorldPos;
+            varying float vSpike;
+            uniform float uTime;
+            uniform float uThreshold;
+            void main() {
+                vec3 viewDir = normalize(cameraPosition - vWorldPos);
+                float cameraFacing = dot(normalize(vNormal), viewDir);
+                float zebra = step(0.0, sin(vWorldPos.y * ${CONFIG.stripeDensity} + uTime * 2.0));
+                float switcher = step(uThreshold - 0.2, cameraFacing + vSpike);
+                vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (cameraFacing * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
+                gl_FragColor = vec4(mix(vec3(zebra), rainbow, switcher), 1.0);
+            }
+        `
+    });
 
-    // --- SHADER: GHOST SPHERE (Outlines + Irisierend) ---
-    const ghostVertexShader = `
-        varying vec3 vNormal;
-        varying vec3 vViewDir;
-        void main() {
-            vNormal = normalize(normalMatrix * normal);
-            vec4 worldPos = modelMatrix * vec4(position, 1.0);
-            vViewDir = normalize(cameraPosition - worldPos.xyz);
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-    `;
-
-    const ghostFragmentShader = `
-        varying vec3 vNormal;
-        varying vec3 vViewDir;
-        uniform float uTime;
-        uniform float uOpacity;
-
-        vec3 spectral(float t) {
-            return 0.5 + 0.5 * cos(6.28318 * (vec3(1.0, 1.0, 1.0) * t + vec3(0.0, 0.33, 0.67)));
-        }
-
-        void main() {
-            float cameraFacing = dot(vNormal, vViewDir);
-            vec3 irid = spectral(cameraFacing * 0.3 + uTime * 0.4);
-            // Weiße Outlines durch Wireframe-Mode in Three.js gesteuert
-            gl_FragColor = vec4(irid, uOpacity);
-        }
-    `;
-
-    // --- MATERIALS & MESHES ---
-    const mainMaterial = new THREE.ShaderMaterial({
+    // --- SHADER: GHOST SHIELD (Outline Weiß + Füllung Irisierend + Radial Fade) ---
+    const ghostMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uThreshold: { value: angleThreshold },
-            uGradientStart: { value: CONFIG.gradientStart },
-            uSpikeVis: { value: CONFIG.spikeGradientVisibility }
+            uShieldRadius: { value: CONFIG.shieldRadius }
         },
-        vertexShader: mainVertexShader,
-        fragmentShader: mainFragmentShader
-    });
-
-    const ghostMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-            uTime: { value: 0 },
-            uOpacity: { value: CONFIG.outlineOpacity }
-        },
-        vertexShader: ghostVertexShader,
-        fragmentShader: ghostFragmentShader,
         transparent: true,
-        wireframe: true // Stellt die Dreiecks-Outlines dar
+        vertexShader: `
+            varying vec3 vNormal;
+            varying vec2 vUv;
+            varying vec2 vMouseDist;
+            uniform vec2 uMouse;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                vec4 pPos = projectionMatrix * mvPos;
+                // Distanz zur Maus im Screen-Space für den Fade-Effekt
+                vMouseDist = (pPos.xy / pPos.w) - uMouse;
+                gl_Position = pPos;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vNormal;
+            varying vec2 vMouseDist;
+            uniform float uTime;
+            uniform float uShieldRadius;
+
+            void main() {
+                // Radialer Fade vom Mauszeiger aus
+                float dist = length(vMouseDist);
+                float mask = smoothstep(uShieldRadius, 0.0, dist);
+                
+                if (mask < 0.01) discard;
+
+                // Irisierende Füllung
+                vec3 irid = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.3) + vec3(0, 0.33, 0.67)));
+                
+                // Da wir echtes Wireframe nutzen, mischen wir hier nur die Füllungsfarbe
+                // Die weiße Outline wird durch ein zweites Mesh realisiert für saubere Trennung
+                gl_FragColor = vec4(irid, mask * 0.6);
+            }
+        `
     });
 
-    const mainMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), mainMaterial);
+    const geo = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
+    const mainMesh = new THREE.Mesh(geo, mainMat);
     scene.add(mainMesh);
 
-    const ghostMesh = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.ghostRadius, CONFIG.detail), ghostMaterial);
+    // Ghost Füllung
+    const ghostGeo = new THREE.IcosahedronGeometry(CONFIG.ghostRadius, CONFIG.detail);
+    const ghostMesh = new THREE.Mesh(ghostGeo, ghostMat);
     scene.add(ghostMesh);
 
-    // --- INPUT & DEVICE LOGIC ---
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const overlay = document.getElementById('mobile-overlay');
+    // Ghost Outline (Rein Weiß)
+    const outlineMat = new THREE.MeshBasicMaterial({ 
+        color: 0xffffff, 
+        wireframe: true, 
+        transparent: true,
+        opacity: 0.0 // Startet unsichtbar, wird via Shader-Logik im Loop gesteuert
+    });
+    const outlineMesh = new THREE.Mesh(ghostGeo, outlineMat);
+    scene.add(outlineMesh);
 
-    const updateInput = (x, y) => {
-        targetInput.x = (x / window.innerWidth) * 2 - 1;
-        targetInput.y = (y / window.innerHeight) * 2 - 1;
-    };
+    window.addEventListener('mousemove', (e) => {
+        targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
+        targetInput.y = -(e.clientY / window.innerHeight) * 2 - 1;
+    });
 
-    if (isMobile) {
-        document.getElementById('device-mode').innerText = "System: Mobile";
-        overlay.style.display = "flex";
-        window.addEventListener('touchmove', (e) => updateInput(e.touches[0].clientX, e.touches[0].clientY), { passive: false });
-        document.getElementById('start-btn').onclick = async () => {
-            if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-                const res = await DeviceOrientationEvent.requestPermission();
-                if (res === 'granted') startGyro();
-            } else startGyro();
-        };
-        function startGyro() {
-            document.getElementById('sensor-status').innerText = "Sensor: Gyro + Touch";
-            overlay.remove();
-            window.addEventListener('deviceorientation', (e) => {
-                targetInput.x = (e.gamma / 40) * CONFIG.gyroSensitivity;
-                targetInput.y = ((e.beta - 45) / 40) * CONFIG.gyroSensitivity;
-            });
-        }
-    } else {
-        document.getElementById('device-mode').innerText = "System: Desktop";
-        window.addEventListener('mousemove', (e) => updateInput(e.clientX, e.clientY));
-    }
-
-    // --- ANIMATION ---
     function animate() {
         requestAnimationFrame(animate);
-        
         currentInput.x += (targetInput.x - currentInput.x) * CONFIG.lerpFactor;
         currentInput.y += (targetInput.y - currentInput.y) * CONFIG.lerpFactor;
 
-        // Rotation Initial Sphere (Konstant)
+        mainMat.uniforms.uTime.value += 0.02;
+        mainMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
+        
+        ghostMat.uniforms.uTime.value += 0.02;
+        ghostMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
+
+        // Rotation
         mainMesh.rotation.y += CONFIG.rotationSpeed;
         
-        // Rotation Ghost Sphere (Maus-Analog)
-        ghostMesh.rotation.x = currentInput.y * CONFIG.ghostRotationStrength;
+        // Ghost rotiert analog zur Maus
+        ghostMesh.rotation.x = -currentInput.y * CONFIG.ghostRotationStrength;
         ghostMesh.rotation.y = currentInput.x * CONFIG.ghostRotationStrength;
+        outlineMesh.rotation.copy(ghostMesh.rotation);
 
-        // Uniform Updates
-        mainMaterial.uniforms.uTime.value += 0.02;
-        ghostMaterial.uniforms.uTime.value += 0.02;
-        mainMaterial.uniforms.uMouse.value.set(currentInput.x, -currentInput.y);
+        // Die Sichtbarkeit der weißen Outline an die Mausdistanz koppeln (analog zum Shield Fade)
+        // Da MeshBasicMaterial keine vMouseDist hat, nutzen wir eine einfache Annäherung
+        outlineMat.opacity = 0.8; 
 
         renderer.render(scene, camera);
     }
