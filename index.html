@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere Pro - Round Mask</title>
+    <title>Shield Sphere Pro - Fixed Visibility</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
@@ -50,10 +50,10 @@
         rotationSpeed: 0.005,
         lerpFactor: 0.1,
         ghostRotationStrength: 1.5,
-        // --- SCHILD PARAMETER ---
-        shieldSize: 0.6,          // Radius der Maske
-        shieldSharpness: 0.05,    // Übergangshärte (kleiner = härter)
-        shieldOpacity: 1.0        // Jetzt voll deckend
+        // SCHILD PARAMETER (Voll deckend)
+        shieldSize: 0.6,          
+        shieldSharpness: 0.02,    
+        shieldOpacity: 1.0        
     };
 
     const scene = new THREE.Scene();
@@ -77,7 +77,7 @@
             vLocalPos = position;
             vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
             vec4 pPos = projectionMatrix * mvPos;
-            vScreenPos = pPos.xy / pPos.w; // Screen Space Koordinaten
+            vScreenPos = pPos.xy / pPos.w;
             gl_Position = pPos;
         }
     `;
@@ -109,7 +109,8 @@
             uAspect: { value: window.innerWidth / window.innerHeight },
             uIsOutline: { value: false }
         },
-        transparent: true,
+        transparent: true, // Erforderlich für die Maskierung
+        depthWrite: false, // Verhindert Z-Fighting
         vertexShader: sharedVert,
         fragmentShader: `
             varying vec2 vScreenPos;
@@ -120,22 +121,22 @@
             uniform bool uIsOutline;
 
             void main() {
-                // KORREKTUR FÜR RUNDE MASKE (Aspect Ratio)
                 vec2 diff = vScreenPos - uMouse;
-                diff.x *= uAspect; // X-Achse skalieren, um Verzerrung aufzuheben
+                diff.x *= uAspect; 
                 float dist = length(diff);
                 
-                // Maske mit konfigurierbarer Schärfe
+                // Maske ohne Discard für bessere Stabilität
                 float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
                 
-                if (mask < 0.01) discard;
-
+                vec3 color;
                 if (uIsOutline) {
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask * ${CONFIG.shieldOpacity});
+                    color = vec3(1.0);
                 } else {
-                    vec3 irid = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
-                    gl_FragColor = vec4(irid, mask * ${CONFIG.shieldOpacity});
+                    color = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
                 }
+
+                // Hier nutzen wir mask direkt als Alpha für deckende Flächen
+                gl_FragColor = vec4(color, mask * ${CONFIG.shieldOpacity});
             }
         `
     });
@@ -178,7 +179,6 @@
         shieldMat.uniforms.uTime.value += 0.015;
         shieldOutlineMat.uniforms.uTime.value += 0.015;
 
-        // Maus/Gyro an Shader senden
         shieldMat.uniforms.uMouse.value.copy(currentInput);
         shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
 
@@ -194,11 +194,12 @@
     animate();
 
     window.onresize = () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        const aspect = window.innerWidth / window.innerHeight;
+        camera.aspect = aspect;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        shieldMat.uniforms.uAspect.value = camera.aspect;
-        shieldOutlineMat.uniforms.uAspect.value = camera.aspect;
+        shieldMat.uniforms.uAspect.value = aspect;
+        shieldOutlineMat.uniforms.uAspect.value = aspect;
     };
 </script>
 </body>
