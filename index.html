@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere Hybrid</title>
+    <title>Shield Sphere Alpha</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
@@ -11,17 +11,17 @@
         canvas { display: block; }
         #ui {
             position: fixed; top: 30px; left: 30px; color: #00f0ff; 
-            font-family: "Boldonse", system-ui; font-size: 13px;
+            font-family: "Boldonse", system-ui; font-size: 12px;
             pointer-events: none; z-index: 100; text-transform: uppercase;
-            letter-spacing: 2px; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+            letter-spacing: 2px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
         }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <span id="device-mode">System: Detecting</span><br>
-    <span id="sensor-status">Sensor: Active</span>
+    SYSTEM: DETECTING<br>
+    SENSOR: ACTIVE
 </div>
 
 <script type="importmap">
@@ -33,21 +33,22 @@
 
     const CONFIG = {
         radius: 2.5,
-        ghostRadius: 3.0, // Größe auf 3 erhöht
+        ghostRadius: 3.0,
         detail: 2,
         spikeSharpness: 25.0,
-        maxReach: 1.9,
+        maxReach: 1.8,
         stripeDensity: 15.0,
         viewAngle: 25,
         rotationSpeed: 0.005,
-        lerpFactor: 0.05,
-        ghostRotationStrength: 1.2,
-        shieldRadius: 0.8 // Radius des sichtbaren Bereichs um die Maus
+        lerpFactor: 0.06,
+        ghostRotationStrength: 1.4,
+        shieldRadius: 0.7 // Wie weit das Schild um die Maus herum strahlt
     };
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 8;
+
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -56,9 +57,20 @@
     let targetInput = { x: 0, y: 0 };
     let currentInput = { x: 0, y: 0 };
 
-    // --- SHADER: INITIAL SPHERE (Zebra) ---
-    const mainMat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: 0 }, uMouse: { value: new THREE.Vector2(0, 0) }, uThreshold: { value: Math.cos(CONFIG.viewAngle * Math.PI / 180) } },
+    // --- SHARED SHADER HELPER ---
+    const spectralFn = `
+        vec3 spectral(float t) {
+            return 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * t + vec3(0, 0.33, 0.67)));
+        }
+    `;
+
+    // --- INITIAL SPHERE (INNER) ---
+    const innerMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uMouse: { value: new THREE.Vector2(0, 0) },
+            uThreshold: { value: Math.cos(CONFIG.viewAngle * Math.PI / 180) }
+        },
         vertexShader: `
             varying vec3 vNormal;
             varying vec3 vWorldPos;
@@ -71,7 +83,7 @@
                 vec2 ndc = pPos.xy / pPos.w;
                 float d = distance(ndc, uMouse);
                 float influence = smoothstep(0.7, 0.0, d);
-                vSpike = pow(max(0.0, influence + sin(position.x * 10.0) * 0.3), ${CONFIG.spikeSharpness});
+                vSpike = pow(max(0.0, influence + sin(position.x * 8.0) * 0.2), ${CONFIG.spikeSharpness});
                 vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach};
                 vNormal = normalize(normalMatrix * normal);
                 vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
@@ -85,35 +97,36 @@
             varying float vSpike;
             uniform float uTime;
             uniform float uThreshold;
+            ${spectralFn}
             void main() {
                 vec3 viewDir = normalize(cameraPosition - vWorldPos);
                 float cameraFacing = dot(normalize(vNormal), viewDir);
-                float zebra = step(0.0, sin(vWorldPos.y * ${CONFIG.stripeDensity} + uTime * 2.0));
-                float switcher = step(uThreshold - 0.2, cameraFacing + vSpike);
-                vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (cameraFacing * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
+                float zebra = step(0.0, sin(vWorldPos.y * ${CONFIG.stripeDensity} + uTime * 1.5));
+                float switcher = step(uThreshold - 0.15, cameraFacing + vSpike);
+                vec3 rainbow = spectral(cameraFacing * 0.5 + uTime * 0.2);
                 gl_FragColor = vec4(mix(vec3(zebra), rainbow, switcher), 1.0);
             }
         `
     });
 
-    // --- SHADER: GHOST SHIELD (Outline Weiß + Füllung Irisierend + Radial Fade) ---
-    const ghostMat = new THREE.ShaderMaterial({
+    // --- GHOST SHIELD SHADER (OUTER) ---
+    // Dieser Shader macht beides: Füllung UND radiale Maske für die Outlines
+    const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uShieldRadius: { value: CONFIG.shieldRadius }
+            uShieldRadius: { value: CONFIG.shieldRadius },
+            uIsOutline: { value: false }
         },
         transparent: true,
+        side: THREE.DoubleSide,
         vertexShader: `
             varying vec3 vNormal;
-            varying vec2 vUv;
             varying vec2 vMouseDist;
             uniform vec2 uMouse;
             void main() {
                 vNormal = normalize(normalMatrix * normal);
-                vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-                vec4 pPos = projectionMatrix * mvPos;
-                // Distanz zur Maus im Screen-Space für den Fade-Effekt
+                vec4 pPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 vMouseDist = (pPos.xy / pPos.w) - uMouse;
                 gl_Position = pPos;
             }
@@ -123,43 +136,42 @@
             varying vec2 vMouseDist;
             uniform float uTime;
             uniform float uShieldRadius;
-
+            uniform bool uIsOutline;
+            ${spectralFn}
             void main() {
-                // Radialer Fade vom Mauszeiger aus
                 float dist = length(vMouseDist);
                 float mask = smoothstep(uShieldRadius, 0.0, dist);
-                
-                if (mask < 0.01) discard;
+                if (mask < 0.02) discard;
 
-                // Irisierende Füllung
-                vec3 irid = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.3) + vec3(0, 0.33, 0.67)));
-                
-                // Da wir echtes Wireframe nutzen, mischen wir hier nur die Füllungsfarbe
-                // Die weiße Outline wird durch ein zweites Mesh realisiert für saubere Trennung
-                gl_FragColor = vec4(irid, mask * 0.6);
+                if (uIsOutline) {
+                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask * 0.9); // Knallweißes Gitter
+                } else {
+                    vec3 irid = spectral(vNormal.z * 0.5 + uTime * 0.4);
+                    gl_FragColor = vec4(irid, mask * 0.4); // Irisierende Flächen
+                }
             }
         `
     });
 
+    // Meshes erstellen
     const geo = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
-    const mainMesh = new THREE.Mesh(geo, mainMat);
-    scene.add(mainMesh);
+    const innerSphere = new THREE.Mesh(geo, innerMat);
+    scene.add(innerSphere);
 
-    // Ghost Füllung
     const ghostGeo = new THREE.IcosahedronGeometry(CONFIG.ghostRadius, CONFIG.detail);
-    const ghostMesh = new THREE.Mesh(ghostGeo, ghostMat);
-    scene.add(ghostMesh);
+    
+    // 1. Die irisierende Füllung
+    const shieldFill = new THREE.Mesh(ghostGeo, shieldMat);
+    scene.add(shieldFill);
 
-    // Ghost Outline (Rein Weiß)
-    const outlineMat = new THREE.MeshBasicMaterial({ 
-        color: 0xffffff, 
-        wireframe: true, 
-        transparent: true,
-        opacity: 0.0 // Startet unsichtbar, wird via Shader-Logik im Loop gesteuert
-    });
-    const outlineMesh = new THREE.Mesh(ghostGeo, outlineMat);
-    scene.add(outlineMesh);
+    // 2. Die weißen Linien (selber Shader, anderes Uniform)
+    const shieldOutlineMat = shieldMat.clone();
+    shieldOutlineMat.uniforms.uIsOutline.value = true;
+    shieldOutlineMat.wireframe = true;
+    const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
+    scene.add(shieldOutline);
 
+    // Interaction
     window.addEventListener('mousemove', (e) => {
         targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
         targetInput.y = -(e.clientY / window.innerHeight) * 2 - 1;
@@ -170,23 +182,24 @@
         currentInput.x += (targetInput.x - currentInput.x) * CONFIG.lerpFactor;
         currentInput.y += (targetInput.y - currentInput.y) * CONFIG.lerpFactor;
 
-        mainMat.uniforms.uTime.value += 0.02;
-        mainMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
+        // Zeit & Maus-Position an alle Shader übertragen
+        const timeInc = 0.02;
+        innerMat.uniforms.uTime.value += timeInc;
+        innerMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
         
-        ghostMat.uniforms.uTime.value += 0.02;
-        ghostMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
+        shieldMat.uniforms.uTime.value += timeInc;
+        shieldMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
+        shieldOutlineMat.uniforms.uTime.value += timeInc;
+        shieldOutlineMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
 
-        // Rotation
-        mainMesh.rotation.y += CONFIG.rotationSpeed;
+        // Rotationen
+        innerSphere.rotation.y += CONFIG.rotationSpeed;
         
-        // Ghost rotiert analog zur Maus
-        ghostMesh.rotation.x = -currentInput.y * CONFIG.ghostRotationStrength;
-        ghostMesh.rotation.y = currentInput.x * CONFIG.ghostRotationStrength;
-        outlineMesh.rotation.copy(ghostMesh.rotation);
-
-        // Die Sichtbarkeit der weißen Outline an die Mausdistanz koppeln (analog zum Shield Fade)
-        // Da MeshBasicMaterial keine vMouseDist hat, nutzen wir eine einfache Annäherung
-        outlineMat.opacity = 0.8; 
+        // Ghost Sphere rotiert aktiv mit der Mausbewegung
+        const rotX = -currentInput.y * CONFIG.ghostRotationStrength;
+        const rotY = currentInput.x * CONFIG.ghostRotationStrength;
+        shieldFill.rotation.set(rotX, rotY, 0);
+        shieldOutline.rotation.set(rotX, rotY, 0);
 
         renderer.render(scene, camera);
     }
