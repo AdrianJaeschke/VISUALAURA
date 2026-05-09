@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere v2 - Fixed Mapping</title>
+    <title>Shield Sphere Pro - Round Mask</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
@@ -28,10 +28,10 @@
 </head>
 <body>
 
-<div id="ui">SYSTEM: ONLINE<br>SENSOR: <span id="status">READY</span></div>
+<div id="ui">SYSTEM: ONLINE<br>SENSOR: <span id="status">STABLE</span></div>
 
 <div id="overlay">
-    <button id="start-btn">INITIALIZE SHIELD</button>
+    <button id="start-btn">ACTIVATE SYSTEM</button>
 </div>
 
 <script type="importmap">
@@ -50,7 +50,10 @@
         rotationSpeed: 0.005,
         lerpFactor: 0.1,
         ghostRotationStrength: 1.5,
-        shieldSize: 0.7 
+        // --- SCHILD PARAMETER ---
+        shieldSize: 0.6,          // Radius der Maske
+        shieldSharpness: 0.05,    // Übergangshärte (kleiner = härter)
+        shieldOpacity: 1.0        // Jetzt voll deckend
     };
 
     const scene = new THREE.Scene();
@@ -65,29 +68,23 @@
     let targetInput = new THREE.Vector2(0, 0);
     let currentInput = new THREE.Vector2(0, 0);
 
-    // --- SHADER LOGIK ---
-    
-    // Vertex Shader: Nutzt lokale Positionen für korrektes Texture-Wrapping
     const sharedVert = `
         varying vec3 vNormal;
         varying vec3 vLocalPos;
-        varying vec2 vMouseDist;
-        uniform vec2 uMouse;
+        varying vec2 vScreenPos;
         void main() {
             vNormal = normalize(normalMatrix * normal);
-            vLocalPos = position; // Lokale Koordinaten für das Zebra
+            vLocalPos = position;
             vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
             vec4 pPos = projectionMatrix * mvPos;
-            vMouseDist = (pPos.xy / pPos.w) - uMouse;
+            vScreenPos = pPos.xy / pPos.w; // Screen Space Koordinaten
             gl_Position = pPos;
         }
     `;
 
-    // Inner Sphere Material
     const innerMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
-            uMouse: { value: new THREE.Vector2(0, 0) },
             uThreshold: { value: Math.cos(CONFIG.viewAngle * Math.PI / 180) }
         },
         vertexShader: sharedVert,
@@ -97,7 +94,6 @@
             uniform float uTime;
             uniform float uThreshold;
             void main() {
-                // Zebra Mapping auf lokaler Y-Achse (dreht sich mit)
                 float zebra = step(0.0, sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0));
                 vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
                 float switcher = step(uThreshold, vNormal.z);
@@ -106,40 +102,44 @@
         `
     });
 
-    // Ghost Shield Material (0.9 Transparenz für Outlines)
     const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uIsOutline: { value: false },
-            uShieldSize: { value: CONFIG.shieldSize }
+            uAspect: { value: window.innerWidth / window.innerHeight },
+            uIsOutline: { value: false }
         },
         transparent: true,
-        depthWrite: false,
         vertexShader: sharedVert,
         fragmentShader: `
-            varying vec2 vMouseDist;
+            varying vec2 vScreenPos;
             varying vec3 vNormal;
+            uniform vec2 uMouse;
+            uniform float uAspect;
             uniform float uTime;
             uniform bool uIsOutline;
-            uniform float uShieldSize;
+
             void main() {
-                float dist = length(vMouseDist);
-                float mask = smoothstep(uShieldSize, uShieldSize - 0.1, dist);
+                // KORREKTUR FÜR RUNDE MASKE (Aspect Ratio)
+                vec2 diff = vScreenPos - uMouse;
+                diff.x *= uAspect; // X-Achse skalieren, um Verzerrung aufzuheben
+                float dist = length(diff);
                 
+                // Maske mit konfigurierbarer Schärfe
+                float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
+                
+                if (mask < 0.01) discard;
+
                 if (uIsOutline) {
-                    // Harte 0.9 Transparenz für die weiße Outline im Shield-Bereich
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask * 0.9);
+                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask * ${CONFIG.shieldOpacity});
                 } else {
-                    // Irisierende Füllung
                     vec3 irid = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
-                    gl_FragColor = vec4(irid, mask * 0.3);
+                    gl_FragColor = vec4(irid, mask * ${CONFIG.shieldOpacity});
                 }
             }
         `
     });
 
-    // Meshes
     const inner = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), innerMat);
     scene.add(inner);
 
@@ -153,49 +153,37 @@
     const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
     scene.add(shieldOutline);
 
-    // --- INTERACTION LOGIC ---
     const startBtn = document.getElementById('start-btn');
-    const statusTxt = document.getElementById('status');
-
     startBtn.onclick = async () => {
         document.getElementById('overlay').style.display = 'none';
-        
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            try {
-                const permission = await DeviceOrientationEvent.requestPermission();
-                if (permission === 'granted') {
-                    window.addEventListener('deviceorientation', (e) => {
-                        targetInput.x = (e.gamma / 45);
-                        targetInput.y = (e.beta - 45) / 45;
-                    });
-                    statusTxt.innerText = 'GYRO ACTIVE';
-                }
-            } catch (e) { statusTxt.innerText = 'ERROR'; }
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission === 'granted') window.addEventListener('deviceorientation', (e) => {
+                targetInput.x = (e.gamma / 45);
+                targetInput.y = (e.beta - 45) / 45;
+            });
         } else {
             window.addEventListener('mousemove', (e) => {
                 targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
                 targetInput.y = -(e.clientY / window.innerHeight) * 2 + 1;
             });
-            statusTxt.innerText = 'MOUSE ACTIVE';
         }
     };
 
     function animate() {
         requestAnimationFrame(animate);
-        
         currentInput.lerp(targetInput, CONFIG.lerpFactor);
 
         innerMat.uniforms.uTime.value += 0.015;
-        innerMat.uniforms.uMouse.value.copy(currentInput);
-        
         shieldMat.uniforms.uTime.value += 0.015;
-        shieldMat.uniforms.uMouse.value.copy(currentInput);
         shieldOutlineMat.uniforms.uTime.value += 0.015;
+
+        // Maus/Gyro an Shader senden
+        shieldMat.uniforms.uMouse.value.copy(currentInput);
         shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
 
         inner.rotation.y += CONFIG.rotationSpeed;
         
-        // Ghost rotiert mit Maus-Offset
         const rotX = -currentInput.y * CONFIG.ghostRotationStrength;
         const rotY = currentInput.x * CONFIG.ghostRotationStrength;
         shieldFill.rotation.set(rotX, rotY, 0);
@@ -209,6 +197,8 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        shieldMat.uniforms.uAspect.value = camera.aspect;
+        shieldOutlineMat.uniforms.uAspect.value = camera.aspect;
     };
 </script>
 </body>
