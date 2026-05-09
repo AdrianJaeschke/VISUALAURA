@@ -2,26 +2,37 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Shield Sphere Alpha</title>
+    <title>Fixed Shield Sphere</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
         canvas { display: block; }
         #ui {
             position: fixed; top: 30px; left: 30px; color: #00f0ff; 
-            font-family: "Boldonse", system-ui; font-size: 12px;
+            font-family: "Boldonse", sans-serif; font-size: 12px;
             pointer-events: none; z-index: 100; text-transform: uppercase;
             letter-spacing: 2px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
         }
+        #overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        #start-btn {
+            padding: 20px 40px; background: none; border: 2px solid #00f0ff;
+            color: #00f0ff; font-family: "Boldonse", sans-serif; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 4px; transition: 0.3s;
+        }
+        #start-btn:hover { background: rgba(0, 240, 255, 0.2); }
     </style>
 </head>
 <body>
 
-<div id="ui">
-    SYSTEM: DETECTING<br>
-    SENSOR: ACTIVE
+<div id="ui">SYSTEM: ONLINE<br>SENSOR: <span id="status">WAITING</span></div>
+
+<div id="overlay">
+    <button id="start-btn">INITIALIZE SYSTEM</button>
 </div>
 
 <script type="importmap">
@@ -40,9 +51,9 @@
         stripeDensity: 15.0,
         viewAngle: 25,
         rotationSpeed: 0.005,
-        lerpFactor: 0.06,
-        ghostRotationStrength: 1.4,
-        shieldRadius: 0.7 // Wie weit das Schild um die Maus herum strahlt
+        lerpFactor: 0.1,
+        ghostRotationStrength: 1.5,
+        shieldSize: 0.8 // Größe des Lichtkegels
     };
 
     const scene = new THREE.Scene();
@@ -51,165 +62,143 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
-    let targetInput = { x: 0, y: 0 };
-    let currentInput = { x: 0, y: 0 };
+    let targetInput = new THREE.Vector2(0, 0);
+    let currentInput = new THREE.Vector2(0, 0);
 
-    // --- SHARED SHADER HELPER ---
-    const spectralFn = `
-        vec3 spectral(float t) {
-            return 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * t + vec3(0, 0.33, 0.67)));
+    // --- SHADER ---
+    const sharedVert = `
+        varying vec3 vNormal;
+        varying vec2 vMouseDist;
+        uniform vec2 uMouse;
+        void main() {
+            vNormal = normalize(normalMatrix * normal);
+            vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+            vec4 pPos = projectionMatrix * mvPos;
+            vMouseDist = (pPos.xy / pPos.w) - uMouse;
+            gl_Position = pPos;
         }
     `;
 
-    // --- INITIAL SPHERE (INNER) ---
     const innerMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
             uThreshold: { value: Math.cos(CONFIG.viewAngle * Math.PI / 180) }
         },
-        vertexShader: `
-            varying vec3 vNormal;
-            varying vec3 vWorldPos;
-            varying float vSpike;
-            uniform float uTime;
-            uniform vec2 uMouse;
-            void main() {
-                vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-                vec4 pPos = projectionMatrix * mvPos;
-                vec2 ndc = pPos.xy / pPos.w;
-                float d = distance(ndc, uMouse);
-                float influence = smoothstep(0.7, 0.0, d);
-                vSpike = pow(max(0.0, influence + sin(position.x * 8.0) * 0.2), ${CONFIG.spikeSharpness});
-                vec3 newPos = position + normal * vSpike * ${CONFIG.maxReach};
-                vNormal = normalize(normalMatrix * normal);
-                vec4 worldPos = modelMatrix * vec4(newPos, 1.0);
-                vWorldPos = worldPos.xyz;
-                gl_Position = projectionMatrix * viewMatrix * worldPos;
-            }
-        `,
+        vertexShader: sharedVert,
         fragmentShader: `
             varying vec3 vNormal;
-            varying vec3 vWorldPos;
-            varying float vSpike;
             uniform float uTime;
             uniform float uThreshold;
-            ${spectralFn}
             void main() {
-                vec3 viewDir = normalize(cameraPosition - vWorldPos);
-                float cameraFacing = dot(normalize(vNormal), viewDir);
-                float zebra = step(0.0, sin(vWorldPos.y * ${CONFIG.stripeDensity} + uTime * 1.5));
-                float switcher = step(uThreshold - 0.15, cameraFacing + vSpike);
-                vec3 rainbow = spectral(cameraFacing * 0.5 + uTime * 0.2);
+                float zebra = step(0.0, sin(gl_FragCoord.y * 0.1 + uTime * 2.0));
+                vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
+                float switcher = step(uThreshold, vNormal.z);
                 gl_FragColor = vec4(mix(vec3(zebra), rainbow, switcher), 1.0);
             }
         `
     });
 
-    // --- GHOST SHIELD SHADER (OUTER) ---
-    // Dieser Shader macht beides: Füllung UND radiale Maske für die Outlines
     const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
             uMouse: { value: new THREE.Vector2(0, 0) },
-            uShieldRadius: { value: CONFIG.shieldRadius },
-            uIsOutline: { value: false }
+            uIsOutline: { value: false },
+            uShieldSize: { value: CONFIG.shieldSize }
         },
         transparent: true,
-        side: THREE.DoubleSide,
-        vertexShader: `
-            varying vec3 vNormal;
-            varying vec2 vMouseDist;
-            uniform vec2 uMouse;
-            void main() {
-                vNormal = normalize(normalMatrix * normal);
-                vec4 pPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                vMouseDist = (pPos.xy / pPos.w) - uMouse;
-                gl_Position = pPos;
-            }
-        `,
+        depthWrite: false,
+        vertexShader: sharedVert,
         fragmentShader: `
-            varying vec3 vNormal;
             varying vec2 vMouseDist;
+            varying vec3 vNormal;
             uniform float uTime;
-            uniform float uShieldRadius;
             uniform bool uIsOutline;
-            ${spectralFn}
+            uniform float uShieldSize;
             void main() {
-                float dist = length(vMouseDist);
-                float mask = smoothstep(uShieldRadius, 0.0, dist);
-                if (mask < 0.02) discard;
-
+                float mask = smoothstep(uShieldSize, 0.0, length(vMouseDist));
+                if (mask < 0.01) discard;
+                
                 if (uIsOutline) {
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask * 0.9); // Knallweißes Gitter
+                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask);
                 } else {
-                    vec3 irid = spectral(vNormal.z * 0.5 + uTime * 0.4);
-                    gl_FragColor = vec4(irid, mask * 0.4); // Irisierende Flächen
+                    vec3 irid = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
+                    gl_FragColor = vec4(irid, mask * 0.4);
                 }
             }
         `
     });
 
-    // Meshes erstellen
-    const geo = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
-    const innerSphere = new THREE.Mesh(geo, innerMat);
-    scene.add(innerSphere);
+    // Meshes
+    const inner = new THREE.Mesh(new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail), innerMat);
+    scene.add(inner);
 
     const ghostGeo = new THREE.IcosahedronGeometry(CONFIG.ghostRadius, CONFIG.detail);
-    
-    // 1. Die irisierende Füllung
     const shieldFill = new THREE.Mesh(ghostGeo, shieldMat);
     scene.add(shieldFill);
 
-    // 2. Die weißen Linien (selber Shader, anderes Uniform)
     const shieldOutlineMat = shieldMat.clone();
     shieldOutlineMat.uniforms.uIsOutline.value = true;
     shieldOutlineMat.wireframe = true;
     const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
     scene.add(shieldOutline);
 
-    // Interaction
-    window.addEventListener('mousemove', (e) => {
-        targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
-        targetInput.y = -(e.clientY / window.innerHeight) * 2 - 1;
-    });
+    // --- EVENTS & GYRO ---
+    const startBtn = document.getElementById('start-btn');
+    const statusTxt = document.getElementById('status');
+
+    startBtn.onclick = async () => {
+        document.getElementById('overlay').style.display = 'none';
+        
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission === 'granted') {
+                window.addEventListener('deviceorientation', handleGyro);
+                statusTxt.innerText = 'GYRO ACTIVE';
+            }
+        } else {
+            window.addEventListener('mousemove', (e) => {
+                targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
+                targetInput.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            });
+            statusTxt.innerText = 'MOUSE ACTIVE';
+        }
+    };
+
+    function handleGyro(e) {
+        targetInput.x = (e.gamma / 45); // Neigung links/rechts
+        targetInput.y = (e.beta - 45) / 45; // Neigung vor/zurück
+    }
 
     function animate() {
         requestAnimationFrame(animate);
-        currentInput.x += (targetInput.x - currentInput.x) * CONFIG.lerpFactor;
-        currentInput.y += (targetInput.y - currentInput.y) * CONFIG.lerpFactor;
-
-        // Zeit & Maus-Position an alle Shader übertragen
-        const timeInc = 0.02;
-        innerMat.uniforms.uTime.value += timeInc;
-        innerMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
         
-        shieldMat.uniforms.uTime.value += timeInc;
-        shieldMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
-        shieldOutlineMat.uniforms.uTime.value += timeInc;
-        shieldOutlineMat.uniforms.uMouse.value.set(currentInput.x, currentInput.y);
+        currentInput.lerp(targetInput, CONFIG.lerpFactor);
 
-        // Rotationen
-        innerSphere.rotation.y += CONFIG.rotationSpeed;
+        innerMat.uniforms.uTime.value += 0.02;
+        innerMat.uniforms.uMouse.value.copy(currentInput);
         
-        // Ghost Sphere rotiert aktiv mit der Mausbewegung
-        const rotX = -currentInput.y * CONFIG.ghostRotationStrength;
-        const rotY = currentInput.x * CONFIG.ghostRotationStrength;
-        shieldFill.rotation.set(rotX, rotY, 0);
-        shieldOutline.rotation.set(rotX, rotY, 0);
+        shieldMat.uniforms.uTime.value += 0.02;
+        shieldMat.uniforms.uMouse.value.copy(currentInput);
+        shieldOutlineMat.uniforms.uTime.value += 0.02;
+        shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
+
+        inner.rotation.y += CONFIG.rotationSpeed;
+        shieldFill.rotation.x = shieldOutline.rotation.x = -currentInput.y * CONFIG.ghostRotationStrength;
+        shieldFill.rotation.y = shieldOutline.rotation.y = currentInput.x * CONFIG.ghostRotationStrength;
 
         renderer.render(scene, camera);
     }
     animate();
 
-    window.addEventListener('resize', () => {
+    window.onresize = () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    };
 </script>
 </body>
 </html>
