@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Fixed Shield Sphere</title>
+    <title>Shield Sphere v2 - Fixed Mapping</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Boldonse&display=swap" rel="stylesheet">
@@ -16,23 +16,22 @@
             letter-spacing: 2px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
         }
         #overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            position: fixed; inset: 0; background: rgba(0,0,0,0.9);
             display: flex; justify-content: center; align-items: center; z-index: 1000;
         }
         #start-btn {
             padding: 20px 40px; background: none; border: 2px solid #00f0ff;
             color: #00f0ff; font-family: "Boldonse", sans-serif; cursor: pointer;
-            text-transform: uppercase; letter-spacing: 4px; transition: 0.3s;
+            text-transform: uppercase; letter-spacing: 4px;
         }
-        #start-btn:hover { background: rgba(0, 240, 255, 0.2); }
     </style>
 </head>
 <body>
 
-<div id="ui">SYSTEM: ONLINE<br>SENSOR: <span id="status">WAITING</span></div>
+<div id="ui">SYSTEM: ONLINE<br>SENSOR: <span id="status">READY</span></div>
 
 <div id="overlay">
-    <button id="start-btn">INITIALIZE SYSTEM</button>
+    <button id="start-btn">INITIALIZE SHIELD</button>
 </div>
 
 <script type="importmap">
@@ -46,14 +45,12 @@
         radius: 2.5,
         ghostRadius: 3.0,
         detail: 2,
-        spikeSharpness: 25.0,
-        maxReach: 1.8,
-        stripeDensity: 15.0,
-        viewAngle: 25,
+        stripeDensity: 12.0,
+        viewAngle: 28,
         rotationSpeed: 0.005,
         lerpFactor: 0.1,
         ghostRotationStrength: 1.5,
-        shieldSize: 0.8 // Größe des Lichtkegels
+        shieldSize: 0.7 
     };
 
     const scene = new THREE.Scene();
@@ -68,13 +65,17 @@
     let targetInput = new THREE.Vector2(0, 0);
     let currentInput = new THREE.Vector2(0, 0);
 
-    // --- SHADER ---
+    // --- SHADER LOGIK ---
+    
+    // Vertex Shader: Nutzt lokale Positionen für korrektes Texture-Wrapping
     const sharedVert = `
         varying vec3 vNormal;
+        varying vec3 vLocalPos;
         varying vec2 vMouseDist;
         uniform vec2 uMouse;
         void main() {
             vNormal = normalize(normalMatrix * normal);
+            vLocalPos = position; // Lokale Koordinaten für das Zebra
             vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
             vec4 pPos = projectionMatrix * mvPos;
             vMouseDist = (pPos.xy / pPos.w) - uMouse;
@@ -82,6 +83,7 @@
         }
     `;
 
+    // Inner Sphere Material
     const innerMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
@@ -91,10 +93,12 @@
         vertexShader: sharedVert,
         fragmentShader: `
             varying vec3 vNormal;
+            varying vec3 vLocalPos;
             uniform float uTime;
             uniform float uThreshold;
             void main() {
-                float zebra = step(0.0, sin(gl_FragCoord.y * 0.1 + uTime * 2.0));
+                // Zebra Mapping auf lokaler Y-Achse (dreht sich mit)
+                float zebra = step(0.0, sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 2.0));
                 vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.2) + vec3(0, 0.33, 0.67)));
                 float switcher = step(uThreshold, vNormal.z);
                 gl_FragColor = vec4(mix(vec3(zebra), rainbow, switcher), 1.0);
@@ -102,6 +106,7 @@
         `
     });
 
+    // Ghost Shield Material (0.9 Transparenz für Outlines)
     const shieldMat = new THREE.ShaderMaterial({
         uniforms: {
             uTime: { value: 0 },
@@ -119,14 +124,16 @@
             uniform bool uIsOutline;
             uniform float uShieldSize;
             void main() {
-                float mask = smoothstep(uShieldSize, 0.0, length(vMouseDist));
-                if (mask < 0.01) discard;
+                float dist = length(vMouseDist);
+                float mask = smoothstep(uShieldSize, uShieldSize - 0.1, dist);
                 
                 if (uIsOutline) {
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask);
+                    // Harte 0.9 Transparenz für die weiße Outline im Shield-Bereich
+                    gl_FragColor = vec4(1.0, 1.0, 1.0, mask * 0.9);
                 } else {
+                    // Irisierende Füllung
                     vec3 irid = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (vNormal.z * 0.5 + uTime * 0.4) + vec3(0, 0.33, 0.67)));
-                    gl_FragColor = vec4(irid, mask * 0.4);
+                    gl_FragColor = vec4(irid, mask * 0.3);
                 }
             }
         `
@@ -146,7 +153,7 @@
     const shieldOutline = new THREE.Mesh(ghostGeo, shieldOutlineMat);
     scene.add(shieldOutline);
 
-    // --- EVENTS & GYRO ---
+    // --- INTERACTION LOGIC ---
     const startBtn = document.getElementById('start-btn');
     const statusTxt = document.getElementById('status');
 
@@ -154,11 +161,16 @@
         document.getElementById('overlay').style.display = 'none';
         
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            const permission = await DeviceOrientationEvent.requestPermission();
-            if (permission === 'granted') {
-                window.addEventListener('deviceorientation', handleGyro);
-                statusTxt.innerText = 'GYRO ACTIVE';
-            }
+            try {
+                const permission = await DeviceOrientationEvent.requestPermission();
+                if (permission === 'granted') {
+                    window.addEventListener('deviceorientation', (e) => {
+                        targetInput.x = (e.gamma / 45);
+                        targetInput.y = (e.beta - 45) / 45;
+                    });
+                    statusTxt.innerText = 'GYRO ACTIVE';
+                }
+            } catch (e) { statusTxt.innerText = 'ERROR'; }
         } else {
             window.addEventListener('mousemove', (e) => {
                 targetInput.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -168,27 +180,26 @@
         }
     };
 
-    function handleGyro(e) {
-        targetInput.x = (e.gamma / 45); // Neigung links/rechts
-        targetInput.y = (e.beta - 45) / 45; // Neigung vor/zurück
-    }
-
     function animate() {
         requestAnimationFrame(animate);
         
         currentInput.lerp(targetInput, CONFIG.lerpFactor);
 
-        innerMat.uniforms.uTime.value += 0.02;
+        innerMat.uniforms.uTime.value += 0.015;
         innerMat.uniforms.uMouse.value.copy(currentInput);
         
-        shieldMat.uniforms.uTime.value += 0.02;
+        shieldMat.uniforms.uTime.value += 0.015;
         shieldMat.uniforms.uMouse.value.copy(currentInput);
-        shieldOutlineMat.uniforms.uTime.value += 0.02;
+        shieldOutlineMat.uniforms.uTime.value += 0.015;
         shieldOutlineMat.uniforms.uMouse.value.copy(currentInput);
 
         inner.rotation.y += CONFIG.rotationSpeed;
-        shieldFill.rotation.x = shieldOutline.rotation.x = -currentInput.y * CONFIG.ghostRotationStrength;
-        shieldFill.rotation.y = shieldOutline.rotation.y = currentInput.x * CONFIG.ghostRotationStrength;
+        
+        // Ghost rotiert mit Maus-Offset
+        const rotX = -currentInput.y * CONFIG.ghostRotationStrength;
+        const rotY = currentInput.x * CONFIG.ghostRotationStrength;
+        shieldFill.rotation.set(rotX, rotY, 0);
+        shieldOutline.rotation.set(rotX, rotY, 0);
 
         renderer.render(scene, camera);
     }
