@@ -13,18 +13,18 @@ export const VISUAL_PARAMS={
 
   postfx:{
     dither:{
-      strength:.13,
-      scale:1.7,
-      levels:7
+      strength:.52,
+      scale:8,
+      levels:15
     }
   },
 
   composition:{
     band:{
-      segments:56,
-      radius:2.62,
-      radiusNoise:.52,
-      width:1.22,
+      segments:32,
+      radius:4.43,
+      radiusNoise:1.02,
+      width:.93,
       widthNoise:.58,
       yScale:.72,
       depth:.92,
@@ -106,16 +106,16 @@ export const VISUAL_PARAMS={
 
   material:{
     band:{
-      opacity:.64,
-      brightness:1.04,
-      edgeGlow:.42,
-      fresnelGlow:.34,
-      whiteSpecular:.72,
-      speed:.08,
-      pearlStrength:.82,
-      filmThickness:1.18,
-      whiteness:.88,
-      spectralSaturation:.72
+      opacity:.34,
+      brightness:3,
+      edgeGlow:4,
+      fresnelGlow:1.25,
+      whiteSpecular:1.5,
+      speed:1,
+      pearlStrength:1.5,
+      filmThickness:3,
+      whiteness:1,
+      spectralSaturation:1.5
     },
 
     wire:{
