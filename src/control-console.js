@@ -1,6 +1,6 @@
 import { VISUAL_PARAMS as P } from "./visual-config.js";
 
-const STORAGE_KEY="visualaura.control-console.v4";
+const STORAGE_KEY="visualaura.control-console.v5";
 
 const controls=[
   {group:"Bloom",path:"bloom.strength",label:"Strength",min:0,max:2.5,step:.01},
@@ -124,7 +124,7 @@ export function applyStoredVisualParams(){
 
 export function createControlConsole({visual,onStructuralChange}={}){
   const panel=document.createElement("aside");
-  panel.className="va-console";
+  panel.className="va-console hidden";
 
   panel.innerHTML=
     '<div class="va-console__header">'+
@@ -248,6 +248,7 @@ export function createControlConsole({visual,onStructuralChange}={}){
 
   panel.querySelector("[data-reset]").addEventListener("click",()=>{
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("visualaura.control-console.v4");
     localStorage.removeItem("visualaura.control-console.v3");
     localStorage.removeItem("visualaura.control-console.v2");
     localStorage.removeItem("visualaura.control-console.v1");
@@ -264,12 +265,26 @@ export function createControlConsole({visual,onStructuralChange}={}){
   const launcher=document.createElement("button");
   launcher.className="va-console-launcher";
   launcher.type="button";
-  launcher.textContent="PARAMS";
-  launcher.addEventListener("click",()=>panel.classList.toggle("hidden"));
+
+  const syncLauncher=()=>{
+    const open=!panel.classList.contains("hidden");
+    launcher.textContent=open?"EDIT VISUALAURA ×":"EDIT VISUALAURA +";
+    launcher.setAttribute("aria-expanded",String(open));
+  };
+
+  launcher.addEventListener("click",()=>{
+    panel.classList.toggle("hidden");
+    syncLauncher();
+  });
+
+  syncLauncher();
   document.body.appendChild(launcher);
 
   addEventListener("keydown",e=>{
-    if(e.code==="Backquote")panel.classList.toggle("hidden");
+    if(e.code==="Backquote"){
+      panel.classList.toggle("hidden");
+      syncLauncher();
+    }
   });
 
   return {panel};
