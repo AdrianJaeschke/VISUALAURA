@@ -28,11 +28,19 @@ function setCase(i){
   kicker.textContent=`Case ${String(activeCase+1).padStart(2,"0")}`;
   title.textContent=c.title;
   const meta=[
+    c.description,
     c.year,
     c.location?.city,
     Array.isArray(c.disciplines)?c.disciplines.join(" / "):null
   ].filter(Boolean);
-  detail.innerHTML=meta.map(item=>`<span>${item}</span>`).join("");
+
+  detail.replaceChildren(
+    ...meta.map(item=>{
+      const span=document.createElement("span");
+      span.textContent=String(item);
+      return span;
+    })
+  );
   [...dots.children].forEach((d,j)=>d.classList.toggle("active",j===activeCase));
   if(presentation.isOpen())presentation.open(c);
 }
