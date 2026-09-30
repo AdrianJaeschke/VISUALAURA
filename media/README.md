@@ -1,30 +1,64 @@
 # Case media
 
-Cases werden jetzt **ordnerbasiert automatisch erkannt**. Du musst für neue Cases keinen JavaScript-Code mehr anfassen.
+Cases werden ordnerbasiert automatisch erkannt. Für neue Projekte musst du keinen JavaScript-Code mehr anfassen.
 
-## Upload
+## Ordnerstruktur
 
-Lege pro Case einfach einen Ordner unter `media/` an:
+Pro Projekt ein Ordner unter `media/`:
 
 ```
 media/
-  01-signal-garden/
+  case1/
+    case1.txt
+    01.jpg
+    02.jpg
     hero.mp4
-    01.jpg
-    02.jpg
-    03.webp
 
-  02-afterimage/
+  case2/
+    project.txt
     01.jpg
-    02.jpg
-    detail.webm
+    02.webp
 ```
 
-Nach dem Upload startet automatisch die GitHub Action **Rebuild case manifest**. Sie scannt alle Case-Ordner und erzeugt `media/cases.json`.
+Die Dateinamen der TXT-Datei sind egal. Wenn mehrere `.txt` Dateien vorhanden sind, wird zuerst eine Datei bevorzugt, deren Name dem Ordnernamen entspricht, ansonsten die alphabetisch erste.
 
-Das Frontend lädt dieses Manifest automatisch.
+## TXT-Format
 
-## Was automatisch erkannt wird
+Die erste nichtleere Zeile ist immer der **Projektname**.
+
+Alle weiteren nichtleeren Zeilen bilden den **Beschreibungstext**.
+
+Beispiel:
+
+```txt
+PORSCHE PIONEERS CIRCLE
+First immersive NFT Experience Campaign
+```
+
+Daraus wird automatisch:
+
+```json
+{
+  "title": "PORSCHE PIONEERS CIRCLE",
+  "description": "First immersive NFT Experience Campaign"
+}
+```
+
+Der Titel erscheint in der Case-Navigation und in der räumlichen Case-Headline. Die Beschreibung wird direkt darunter dargestellt.
+
+## Automatischer Scan
+
+Nach einem Upload unter `media/**` startet die GitHub Action **Rebuild case manifest**.
+
+Sie führt `tools/build-cases.py` aus und erzeugt automatisch:
+
+```
+media/cases.json
+```
+
+Das Frontend lädt dieses Manifest als primäre Case-Datenquelle.
+
+## Erkannte Medien
 
 Bilder:
 
@@ -42,45 +76,22 @@ Videos:
 
 Wenn ein Video `hero`, `main`, `cover` oder `intro` heißt, wird es bevorzugt als Hauptvideo verwendet.
 
-Aus dem Ordnernamen wird automatisch der Case-Titel erzeugt. Aus `01-signal-garden` wird beispielsweise **Signal Garden**.
+## Aura pro Case
 
-## Aura automatisch pro Case
+Jeder Case bekommt automatisch eine eigene stabile visuelle Signatur:
 
-Auch ohne Metadaten bekommt jeder Ordner automatisch eine eigene visuelle Signatur:
-
-- eigene Palette
+- Palette
 - Intensität
 - Komplexität
-- Scaffold-Größe
-- Polygon-Shell-Größe
-- Giant-Wire-Größe
-- Bloom-Bias
-- Rotation / Orbit
-- Moiré-Variation
+- Hero-Triangle Scale
+- Moiré Scale
+- Iridescent-Aura Scale
+- Outer-Wire Scale
+- Bloom Bias
+- Orbit
+- Iridescence
+- Moiré Bias
 
-Die Werte werden stabil aus dem Case-Namen und der Medienanzahl abgeleitet.
+Optional kann weiterhin eine `case.json` im Ordner liegen. Werte aus `case.json` überschreiben die automatisch gelesenen bzw. generierten Werte.
 
-## Optional: case.json
-
-Nur wenn du Text oder Reihenfolge genauer festlegen willst, kannst du zusätzlich eine `case.json` in den Ordner legen. Sie ist **nicht erforderlich**.
-
-Beispiel:
-
-```json
-{
-  "title": "Signal Garden",
-  "year": 2026,
-  "order": 1,
-  "location": {
-    "city": "Munich",
-    "country": "DE"
-  },
-  "disciplines": ["Spatial", "Digital"],
-  "tags": ["Realtime", "Light"],
-  "palette": ["#74f7ff", "#7b69ff", "#ff4ecf"]
-}
-```
-
-## Hinweis zu großen Videos
-
-Für die aktuelle Phase können MP4/WebM-Dateien im Repository liegen. Für sehr große Produktionsvideos ist später ein Media-CDN oder CMS sinnvoller, damit Git nicht irgendwann zur digitalen Abstellkammer wird.
+Für große Produktionsvideos ist später ein Media-CDN sinnvoller. Git als Videospeicher funktioniert, bis Git irgendwann sehr deutlich mitteilt, dass Menschen wieder einmal Dateisysteme mit Datenbanken verwechselt haben.
