@@ -59,7 +59,7 @@ export function createInterpreter(cases){
       density:.35+complexity*.9,
       distortion:.3+intensity*.74,
       glitch:.08+(tags.includes("Glitch")?.74:complexity*.2),
-      moire:.65+complexity*.55+(Number(visual.moireBias)||0),
+      moire:.65+complexity*.55,
       zebra:.5+intensity*.4,
       rotationBias:THREE.MathUtils.mapLinear(lng,-180,180,-Math.PI,Math.PI),
       tiltBias:THREE.MathUtils.mapLinear(lat,-90,90,-.72,.72),
@@ -67,13 +67,14 @@ export function createInterpreter(cases){
       complexity,
       palette:paletteFor(entry),
 
-      heroScale:Number(visual.heroScale)||(.94+hash01(seed,10)*.16),
-      moireScale:Number(visual.moireScale)||(.90+hash01(seed,11)*.20),
-      auraScale:Number(visual.auraScale)||(.90+hash01(seed,12)*.24),
-      wireScale:Number(visual.wireScale)||(.94+hash01(seed,13)*.14),
-      bloomBias:Number(visual.bloomBias)||(-.05+hash01(seed,14)*.14),
-      orbitBias:Number(visual.orbitBias)||(-.16+hash01(seed,15)*.32),
-      iridescenceBias:Number(visual.iridescenceBias)||(.85+hash01(seed,16)*.35)
+      bandScale:Number(visual.bandScale)||Number(visual.heroScale)||(.92+hash01(seed,10)*.22),
+      bandDepth:Number(visual.bandDepth)||(.88+hash01(seed,11)*.28),
+      bandTwist:Number(visual.bandTwist)||(-.22+hash01(seed,12)*.44),
+      wireScale:Number(visual.wireScale)||(.90+hash01(seed,13)*.24),
+      typeScale:Number(visual.typeScale)||(.94+hash01(seed,14)*.12),
+      bloomBias:Number(visual.bloomBias)||(-.05+hash01(seed,15)*.16),
+      orbitBias:Number(visual.orbitBias)||(-.18+hash01(seed,16)*.36),
+      iridescenceBias:Number(visual.iridescenceBias)||(.86+hash01(seed,17)*.34)
     };
   };
 }
