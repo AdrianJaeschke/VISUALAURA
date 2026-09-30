@@ -49,11 +49,13 @@ export const VISUAL_PARAMS={
       sizeMin:2.8,
       sizeMax:6.6,
       tubeRadius:.018,
-      darkColor:"#111217",
-      metalness:.94,
-      roughness:.16,
-      clearcoat:1,
-      clearcoatRoughness:.08,
+      darkColor:"#0b0c10",
+      emissiveColor:"#020305",
+      emissiveIntensity:.03,
+      metalness:.88,
+      roughness:.24,
+      clearcoat:.85,
+      clearcoatRoughness:.16,
       motion:.055
     }
   },
