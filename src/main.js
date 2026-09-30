@@ -27,7 +27,12 @@ function setCase(i){
   targetState=interpret(c);
   kicker.textContent=`Case ${String(activeCase+1).padStart(2,"0")}`;
   title.textContent=c.title;
-  detail.innerHTML=`<span>${c.year}</span><span>${c.location.city}</span><span>${c.disciplines.join(" / ")}</span>`;
+  const meta=[
+    c.year,
+    c.location?.city,
+    Array.isArray(c.disciplines)?c.disciplines.join(" / "):null
+  ].filter(Boolean);
+  detail.innerHTML=meta.map(item=>`<span>${item}</span>`).join("");
   [...dots.children].forEach((d,j)=>d.classList.toggle("active",j===activeCase));
   if(presentation.isOpen())presentation.open(c);
 }
@@ -76,7 +81,26 @@ el("help-copy").textContent=isMobile
   ?"Touch · Gerät bewegen · Case antippen öffnet Medien · Kamera bleibt abstrakt"
   :"Mouse bewegen · Scroll wechselt Cases · Case anklicken öffnet Medien";
 
-function lerpState(a,b,t){return {morph:THREE.MathUtils.lerp(a.morph,b.morph,t),density:THREE.MathUtils.lerp(a.density,b.density,t),distortion:THREE.MathUtils.lerp(a.distortion,b.distortion,t),glitch:THREE.MathUtils.lerp(a.glitch,b.glitch,t),moire:THREE.MathUtils.lerp(a.moire,b.moire,t),zebra:THREE.MathUtils.lerp(a.zebra,b.zebra,t),rotationBias:THREE.MathUtils.lerp(a.rotationBias,b.rotationBias,t),tiltBias:THREE.MathUtils.lerp(a.tiltBias,b.tiltBias,t),intensity:THREE.MathUtils.lerp(a.intensity,b.intensity,t),palette:b.palette}}
+function lerpState(a,b,t){
+  return {
+    morph:THREE.MathUtils.lerp(a.morph,b.morph,t),
+    density:THREE.MathUtils.lerp(a.density,b.density,t),
+    distortion:THREE.MathUtils.lerp(a.distortion,b.distortion,t),
+    glitch:THREE.MathUtils.lerp(a.glitch,b.glitch,t),
+    moire:THREE.MathUtils.lerp(a.moire,b.moire,t),
+    zebra:THREE.MathUtils.lerp(a.zebra,b.zebra,t),
+    rotationBias:THREE.MathUtils.lerp(a.rotationBias,b.rotationBias,t),
+    tiltBias:THREE.MathUtils.lerp(a.tiltBias,b.tiltBias,t),
+    intensity:THREE.MathUtils.lerp(a.intensity,b.intensity,t),
+    complexity:THREE.MathUtils.lerp(a.complexity,b.complexity,t),
+    scaffoldScale:THREE.MathUtils.lerp(a.scaffoldScale,b.scaffoldScale,t),
+    shellScale:THREE.MathUtils.lerp(a.shellScale,b.shellScale,t),
+    giantScale:THREE.MathUtils.lerp(a.giantScale,b.giantScale,t),
+    bloomBias:THREE.MathUtils.lerp(a.bloomBias,b.bloomBias,t),
+    orbitBias:THREE.MathUtils.lerp(a.orbitBias,b.orbitBias,t),
+    palette:b.palette
+  };
+}
 function glitchCSS(g,m){const s=g*.07+m*.09;document.documentElement.style.setProperty("--glitchOpacity",(0.035+s).toFixed(3));document.documentElement.style.setProperty("--glitchX",`${((Math.random()-.5)*80*s).toFixed(2)}px`);document.documentElement.style.setProperty("--glitchY",`${((Math.random()-.5)*28*s).toFixed(2)}px`)}
 
 const clock=new THREE.Clock();
