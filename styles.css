@@ -36,3 +36,177 @@ button.primary{color:#050507;background:var(--fg);border-color:var(--fg)}button:
 .case-title,.case-kicker{cursor:pointer;transition:opacity .25s ease,text-shadow .25s ease}
 .case-title:hover,.case-kicker:hover{opacity:.86;text-shadow:0 0 18px rgba(119,247,255,.16)}
 body.case-presentation-open .case-meta{opacity:.78}
+
+
+/* Parametric control console */
+.va-console{
+  position:fixed;
+  top:14px;
+  right:14px;
+  z-index:80;
+  width:min(360px,calc(100vw - 28px));
+  max-height:calc(100vh - 74px);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:16px;
+  background:rgba(6,7,10,.88);
+  backdrop-filter:blur(22px) saturate(1.2);
+  box-shadow:0 24px 80px rgba(0,0,0,.46);
+  font-family:var(--font-display);
+  transition:opacity .2s ease,transform .2s ease,height .2s ease;
+}
+.va-console.hidden{
+  opacity:0;
+  pointer-events:none;
+  transform:translateY(-8px);
+}
+.va-console.collapsed .va-console__body,
+.va-console.collapsed .va-console__footer{display:none}
+.va-console__header{
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px 10px 14px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+.va-console__header strong{
+  display:block;
+  font-size:12px;
+  letter-spacing:.13em;
+}
+.va-console__header span{
+  display:block;
+  margin-top:3px;
+  color:rgba(255,255,255,.44);
+  font-size:8px;
+  letter-spacing:.18em;
+}
+.va-console__collapse{
+  width:30px;
+  height:30px;
+  padding:0;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+}
+.va-console__body{
+  overflow:auto;
+  overscroll-behavior:contain;
+  padding:8px;
+}
+.va-console__group{
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;
+  background:rgba(255,255,255,.018);
+  margin-bottom:7px;
+  overflow:hidden;
+}
+.va-console__group summary{
+  padding:10px 11px;
+  cursor:pointer;
+  user-select:none;
+  color:rgba(255,255,255,.82);
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.va-console__row{
+  display:grid;
+  grid-template-columns:105px 1fr;
+  gap:10px;
+  align-items:center;
+  min-height:38px;
+  padding:6px 10px;
+  border-top:1px solid rgba(255,255,255,.055);
+}
+.va-console__label{
+  color:rgba(255,255,255,.58);
+  font-size:9px;
+  line-height:1.2;
+  letter-spacing:.03em;
+}
+.va-console__inputs{
+  display:grid;
+  grid-template-columns:1fr 58px;
+  gap:7px;
+  align-items:center;
+}
+.va-console input[type="range"]{
+  width:100%;
+  accent-color:#f2f4ff;
+}
+.va-console input[type="number"]{
+  min-width:0;
+  width:100%;
+  height:26px;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:6px;
+  background:rgba(0,0,0,.32);
+  color:#fff;
+  padding:3px 6px;
+  font:500 9px var(--font-display);
+}
+.va-console input[type="color"]{
+  justify-self:end;
+  width:46px;
+  height:26px;
+  padding:2px;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:6px;
+  background:transparent;
+}
+.va-console__footer{
+  display:grid;
+  gap:8px;
+  padding:10px;
+  border-top:1px solid rgba(255,255,255,.10);
+  background:rgba(0,0,0,.18);
+}
+.va-console__footer button{
+  width:100%;
+  border-radius:8px;
+  padding:9px 10px;
+  font-size:9px;
+}
+.va-console__footer button.dirty{
+  border-color:rgba(116,247,255,.65);
+  box-shadow:0 0 18px rgba(116,247,255,.12);
+}
+.va-console__toggle,
+.va-console__seed{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  color:rgba(255,255,255,.55);
+  font-size:9px;
+  letter-spacing:.04em;
+}
+.va-console__seed input{
+  width:110px!important;
+}
+.va-console-launcher{
+  position:fixed;
+  right:14px;
+  bottom:14px;
+  z-index:81;
+  border-radius:8px;
+  padding:8px 10px;
+  background:rgba(6,7,10,.78);
+  backdrop-filter:blur(14px);
+  font-size:9px;
+  letter-spacing:.12em;
+}
+@media(max-width:760px){
+  .va-console{
+    top:8px;
+    right:8px;
+    width:min(340px,calc(100vw - 16px));
+    max-height:calc(100vh - 58px);
+  }
+  .va-console-launcher{right:8px;bottom:8px}
+}
