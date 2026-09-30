@@ -1,12 +1,16 @@
 import { VISUAL_PARAMS as P } from "./visual-config.js";
 
-const STORAGE_KEY="visualaura.control-console.v2";
+const STORAGE_KEY="visualaura.control-console.v3";
 
 const controls=[
   {group:"Bloom",path:"bloom.strength",label:"Strength",min:0,max:2.5,step:.01},
   {group:"Bloom",path:"bloom.radius",label:"Radius",min:0,max:1,step:.01},
   {group:"Bloom",path:"bloom.threshold",label:"Threshold",min:0,max:1.5,step:.01},
   {group:"Bloom",path:"bloom.motionBoost",label:"Motion Boost",min:0,max:1,step:.01},
+
+  {group:"Global Dither",path:"postfx.dither.strength",label:"Strength",min:0,max:1,step:.01},
+  {group:"Global Dither",path:"postfx.dither.scale",label:"Scale",min:.5,max:8,step:.05},
+  {group:"Global Dither",path:"postfx.dither.levels",label:"Color Levels",min:2,max:16,step:1},
 
   {group:"Hero Mirror",path:"composition.hero.size",label:"Size",min:.5,max:5,step:.01,reload:true},
   {group:"Hero Mirror",path:"composition.hero.z",label:"Depth Z",min:-3,max:3,step:.01,reload:true},
@@ -18,10 +22,8 @@ const controls=[
   {group:"Hero Mirror",path:"material.reflection.edgeGlow",label:"Edge Glow",min:0,max:4,step:.01},
   {group:"Hero Mirror",path:"material.reflection.fresnelGlow",label:"Fresnel",min:0,max:2,step:.01},
   {group:"Hero Mirror",path:"material.reflection.opacity",label:"Opacity",min:0,max:1,step:.01},
-  {group:"Hero Mirror",path:"dither.hero.strength",label:"Dither",min:0,max:1,step:.01},
-  {group:"Hero Mirror",path:"dither.hero.scale",label:"Dither Scale",min:.5,max:8,step:.1},
 
-  {group:"3 Moire",path:"composition.moire.radius",label:"Radius",min:.3,max:5,step:.01,reload:true},
+  {group:"3 Moire",path:"composition.moire.radius",label:"Radius",min:.2,max:4,step:.01,reload:true},
   {group:"3 Moire",path:"composition.moire.sizeMin",label:"Size Min",min:.2,max:3,step:.01,reload:true},
   {group:"3 Moire",path:"composition.moire.sizeMax",label:"Size Max",min:.2,max:4,step:.01,reload:true},
   {group:"3 Moire",path:"composition.moire.zStart",label:"Depth Start",min:-3,max:2,step:.01,reload:true},
@@ -35,25 +37,22 @@ const controls=[
   {group:"3 Moire",path:"material.moire.radialFrequency",label:"Radial Freq",min:4,max:160,step:1},
   {group:"3 Moire",path:"material.moire.zebraMix",label:"Zebra Mix",min:0,max:1,step:.01},
   {group:"3 Moire",path:"material.moire.edgeGlow",label:"Edge Glow",min:0,max:3,step:.01},
-  {group:"3 Moire",path:"dither.moire.strength",label:"Dither",min:0,max:1,step:.01},
-  {group:"3 Moire",path:"dither.moire.scale",label:"Dither Scale",min:.5,max:8,step:.1},
 
   {group:"Iridescent Aura",path:"composition.aura.count",label:"Count",min:12,max:360,step:1,reload:true},
-  {group:"Iridescent Aura",path:"composition.aura.radiusMin",label:"Radius Min",min:.5,max:7,step:.01,reload:true},
-  {group:"Iridescent Aura",path:"composition.aura.radiusMax",label:"Radius Max",min:1,max:10,step:.01,reload:true},
+  {group:"Iridescent Aura",path:"composition.aura.radiusMin",label:"Radius Min",min:.2,max:6,step:.01,reload:true},
+  {group:"Iridescent Aura",path:"composition.aura.radiusMax",label:"Radius Max",min:.5,max:8,step:.01,reload:true},
   {group:"Iridescent Aura",path:"composition.aura.ellipsoid.0",label:"Ellipsoid X",min:.3,max:2,step:.01,reload:true},
   {group:"Iridescent Aura",path:"composition.aura.ellipsoid.1",label:"Ellipsoid Y",min:.3,max:2,step:.01,reload:true},
   {group:"Iridescent Aura",path:"composition.aura.ellipsoid.2",label:"Ellipsoid Z",min:.3,max:2,step:.01,reload:true},
   {group:"Iridescent Aura",path:"composition.aura.sizeMin",label:"Size Min",min:.01,max:.8,step:.005,reload:true},
   {group:"Iridescent Aura",path:"composition.aura.sizeMax",label:"Size Max",min:.03,max:1.5,step:.01,reload:true},
-  {group:"Iridescent Aura",path:"composition.aura.depthSpread",label:"Depth Spread",min:0,max:7,step:.01,reload:true},
+  {group:"Iridescent Aura",path:"composition.aura.depthSpread",label:"Depth Spread",min:0,max:6,step:.01,reload:true},
+  {group:"Iridescent Aura",path:"composition.aura.radialPower",label:"Center Bias",min:.2,max:3,step:.01,reload:true},
   {group:"Iridescent Aura",path:"material.iridescent.brightness",label:"Brightness",min:0,max:3,step:.01},
   {group:"Iridescent Aura",path:"material.iridescent.opacity",label:"Opacity",min:0,max:1,step:.01},
   {group:"Iridescent Aura",path:"material.iridescent.edgeGlow",label:"Edge Glow",min:0,max:4,step:.01},
   {group:"Iridescent Aura",path:"material.iridescent.fresnelGlow",label:"Fresnel",min:0,max:2,step:.01},
   {group:"Iridescent Aura",path:"material.iridescent.speed",label:"Color Speed",min:0,max:1,step:.01},
-  {group:"Iridescent Aura",path:"dither.aura.strength",label:"Dither",min:0,max:1,step:.01},
-  {group:"Iridescent Aura",path:"dither.aura.scale",label:"Dither Scale",min:.5,max:8,step:.1},
 
   {group:"Outer Wire",path:"composition.outerWire.size",label:"Size",min:2,max:14,step:.01,reload:true},
   {group:"Outer Wire",path:"composition.outerWire.z",label:"Depth Z",min:-6,max:3,step:.01,reload:true},
@@ -81,7 +80,7 @@ const controls=[
 ];
 
 const colors=[
-  {group:"Outer Wire",path:"composition.outerWire.darkColor",label:"Base Color"},
+  {group:"Outer Wire",path:"composition.outerWire.color",label:"Wire Color"},
   {group:"Outer Wire",path:"composition.outerWire.emissiveColor",label:"Emissive"}
 ];
 
@@ -128,7 +127,7 @@ export function createControlConsole({visual,onStructuralChange}={}){
 
   panel.innerHTML=
     '<div class="va-console__header">'+
-      '<div><strong>VISUAL AURA</strong><span>1 / 3 / MANY / 1</span></div>'+
+      '<div><strong>VISUAL AURA</strong><span>GLOBAL DITHER / OVERLAP</span></div>'+
       '<button class="va-console__collapse" type="button" aria-label="Konsole ein-/ausklappen">−</button>'+
     '</div>'+
     '<div class="va-console__body"></div>'+
@@ -167,7 +166,7 @@ export function createControlConsole({visual,onStructuralChange}={}){
   grouped.forEach((items,groupName)=>{
     const details=document.createElement("details");
     details.className="va-console__group";
-    details.open=["Bloom","Hero Mirror","3 Moire","Iridescent Aura"].includes(groupName);
+    details.open=["Global Dither","Hero Mirror","3 Moire","Iridescent Aura"].includes(groupName);
 
     const summary=document.createElement("summary");
     summary.textContent=groupName;
@@ -184,7 +183,7 @@ export function createControlConsole({visual,onStructuralChange}={}){
       if(item.color){
         const input=document.createElement("input");
         input.type="color";
-        input.value=getPath(item.path)||"#000000";
+        input.value=getPath(item.path)||"#ffffff";
         input.addEventListener("input",()=>{
           setPath(item.path,input.value);
           applyRuntime();
@@ -258,6 +257,7 @@ export function createControlConsole({visual,onStructuralChange}={}){
 
   panel.querySelector("[data-reset]").addEventListener("click",()=>{
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("visualaura.control-console.v2");
     localStorage.removeItem("visualaura.control-console.v1");
     location.reload();
   });
