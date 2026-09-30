@@ -93,11 +93,13 @@ function lerpState(a,b,t){
     tiltBias:THREE.MathUtils.lerp(a.tiltBias,b.tiltBias,t),
     intensity:THREE.MathUtils.lerp(a.intensity,b.intensity,t),
     complexity:THREE.MathUtils.lerp(a.complexity,b.complexity,t),
-    scaffoldScale:THREE.MathUtils.lerp(a.scaffoldScale,b.scaffoldScale,t),
-    shellScale:THREE.MathUtils.lerp(a.shellScale,b.shellScale,t),
-    giantScale:THREE.MathUtils.lerp(a.giantScale,b.giantScale,t),
+    heroScale:THREE.MathUtils.lerp(a.heroScale,b.heroScale,t),
+    moireScale:THREE.MathUtils.lerp(a.moireScale,b.moireScale,t),
+    auraScale:THREE.MathUtils.lerp(a.auraScale,b.auraScale,t),
+    wireScale:THREE.MathUtils.lerp(a.wireScale,b.wireScale,t),
     bloomBias:THREE.MathUtils.lerp(a.bloomBias,b.bloomBias,t),
     orbitBias:THREE.MathUtils.lerp(a.orbitBias,b.orbitBias,t),
+    iridescenceBias:THREE.MathUtils.lerp(a.iridescenceBias,b.iridescenceBias,t),
     palette:b.palette
   };
 }
