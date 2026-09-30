@@ -34,6 +34,7 @@ function createRibbonGeometry(){
   const n=C.segments;
   const inner=[];
   const outer=[];
+  const centers=[];
 
   for(let i=0;i<n;i++){
     const t=i/n;
@@ -52,6 +53,7 @@ function createRibbonGeometry(){
       Math.sin(a*2.05+.4)*C.depth*.58+
         Math.cos(a*3.65+1.1)*C.depth*.22
     );
+    centers.push(center.clone());
 
     const radial=new THREE.Vector3(
       Math.cos(a),
@@ -129,7 +131,7 @@ function createRibbonGeometry(){
   geo.setAttribute("facet",new THREE.Float32BufferAttribute(data.facets,1));
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
-  return geo;
+  return {geometry:geo,centers};
 }
 
 function createBandMaterial(){
@@ -767,7 +769,14 @@ export async function createVisualScene(stage,cases,videoTexture){
   scene.add(root);
 
   // Central faceted amorphous ribbon.
-  const bandGeometry=createRibbonGeometry();
+  const bandData=createRibbonGeometry();
+  const bandGeometry=bandData.geometry;
+  const bandCurve=new THREE.CatmullRomCurve3(
+    bandData.centers,
+    true,
+    "centripetal",
+    .5
+  );
   const bandMaterial=createBandMaterial();
   const bandMesh=new THREE.Mesh(bandGeometry,bandMaterial);
   bandMesh.renderOrder=4;
@@ -799,6 +808,104 @@ export async function createVisualScene(stage,cases,videoTexture){
   lightA.position.set(-4.8,1.2,4.0);
   lightB.position.set(4.1,-3.3,-1.2);
   scene.add(key,lightA,lightB);
+
+  const caseTs=(cases||[]).map((_,index,list)=>{
+    const count=Math.max(1,list.length);
+    return ((index+.5)/count)%1;
+  });
+
+  const cameraRig={
+    position:camera.position.clone(),
+    target:new THREE.Vector3(),
+    desiredPosition:camera.position.clone(),
+    desiredTarget:new THREE.Vector3()
+  };
+
+  let lastState=null;
+
+  function deformRailPoint(t,state){
+    const local=bandCurve.getPointAt((t%1+1)%1);
+    const depth=state?.bandDepth??1;
+    const twist=state?.bandTwist??0;
+
+    local.z*=depth;
+
+    const angle=(t-.5)*twist;
+    const ct=Math.cos(angle);
+    const st=Math.sin(angle);
+    const x=local.x*ct-local.y*st;
+    const y=local.x*st+local.y*ct;
+    local.x=x;
+    local.y=y;
+
+    return local;
+  }
+
+  function getCaseFrame(index,state=lastState,orbitX=0,orbitY=0){
+    const count=Math.max(1,caseTs.length);
+    const safe=((index%count)+count)%count;
+    const t=caseTs[safe]??0;
+    const ahead=P.composition.cameraRail.lookAhead;
+
+    const localTarget=deformRailPoint(t,state);
+    const localNext=deformRailPoint((t+ahead)%1,state);
+    const localPrev=deformRailPoint((t-ahead+1)%1,state);
+
+    root.updateMatrixWorld(true);
+
+    const target=localTarget.clone().applyMatrix4(root.matrixWorld);
+    const next=localNext.clone().applyMatrix4(root.matrixWorld);
+    const prev=localPrev.clone().applyMatrix4(root.matrixWorld);
+
+    const tangent=next.sub(prev).normalize();
+
+    const centerWorld=new THREE.Vector3().setFromMatrixPosition(root.matrixWorld);
+    const outward=target.clone().sub(centerWorld);
+    if(outward.lengthSq()<.0001)outward.set(0,0,1);
+    outward.normalize();
+
+    const side=new THREE.Vector3().crossVectors(tangent,outward);
+    if(side.lengthSq()<.0001)side.set(0,1,0);
+    side.normalize();
+
+    // Every case naturally sits on a different side of the closed ribbon.
+    // Pointer / gyro then gives a full additional 360 degree orbit.
+    const baseOffset=outward.clone()
+      .multiplyScalar(P.composition.cameraRail.distance)
+      .addScaledVector(side,P.composition.cameraRail.sideOffset)
+      .addScaledVector(new THREE.Vector3(0,1,0),P.composition.cameraRail.height);
+
+    const worldUp=new THREE.Vector3(0,1,0);
+    const azimuth=orbitX*P.composition.cameraRail.orbitAzimuth;
+    baseOffset.applyAxisAngle(worldUp,azimuth);
+
+    const elevationAxis=new THREE.Vector3()
+      .crossVectors(worldUp,baseOffset)
+      .normalize();
+    if(elevationAxis.lengthSq()>.0001){
+      baseOffset.applyAxisAngle(
+        elevationAxis,
+        orbitY*P.composition.cameraRail.orbitElevation
+      );
+    }
+
+    const minD=P.composition.cameraRail.minDistance;
+    const maxD=P.composition.cameraRail.maxDistance;
+    const d=THREE.MathUtils.clamp(baseOffset.length(),minD,maxD);
+    baseOffset.setLength(d);
+
+    const position=target.clone().add(baseOffset);
+
+    return {
+      index:safe,
+      t,
+      target,
+      position,
+      tangent,
+      normal:outward,
+      side
+    };
+  }
 
   let activeCaseIndex=-1;
 
@@ -874,8 +981,14 @@ export async function createVisualScene(stage,cases,videoTexture){
     wireAura,
     typography,
     key,lightA,lightB,
+    bandCurve,
+    caseTs,
+    cameraRig,
+    getCaseFrame,
     setCase,
     get activeCaseIndex(){return activeCaseIndex;},
+    get lastState(){return lastState;},
+    setStateSnapshot(next){lastState=next;},
     applyParams,
     resize
   };
@@ -898,12 +1011,15 @@ export function updateVisualScene(
   const humanVY=cameraMotion.velocityY||0;
 
   const {
-    root,
+    root,camera,
     bandMesh,bandMaterial,bandWireMaterial,
     wireAura,typography,
     bloomPass,ditherPass,
+    cameraRig,
     key,lightA,lightB
   }=visual;
+
+  visual.setStateSnapshot(state);
 
   if(activeCase!==visual.activeCaseIndex){
     visual.setCase(activeCase);
@@ -958,6 +1074,39 @@ export function updateVisualScene(
     (1+motion*R.band.scalePulse);
   const bs=THREE.MathUtils.lerp(root.scale.x,bandScale,R.band.response);
   root.scale.setScalar(bs);
+
+  root.updateMatrixWorld(true);
+
+  // Each case owns one viewpoint along the closed ribbon.
+  // Pointer / gyro adds a true 360-degree orbit around that local case anchor.
+  const orbitX=THREE.MathUtils.clamp(
+    pointer.x*P.composition.cameraRail.pointerOrbit+
+    humanX*P.composition.cameraRail.motionOrbit,
+    -1,
+    1
+  );
+  const orbitY=THREE.MathUtils.clamp(
+    pointer.y*P.composition.cameraRail.pointerOrbit*.72+
+    humanY*P.composition.cameraRail.motionOrbit,
+    -1,
+    1
+  );
+
+  const view=visual.getCaseFrame(activeCase,state,orbitX,orbitY);
+  cameraRig.desiredPosition.copy(view.position);
+  cameraRig.desiredTarget.copy(view.target);
+
+  cameraRig.position.lerp(
+    cameraRig.desiredPosition,
+    P.composition.cameraRail.transitionResponse
+  );
+  cameraRig.target.lerp(
+    cameraRig.desiredTarget,
+    P.composition.cameraRail.targetResponse
+  );
+
+  camera.position.copy(cameraRig.position);
+  camera.lookAt(cameraRig.target);
 
   bandMaterial.uniforms.uTime.value=time;
   bandMaterial.uniforms.uMotion.value=motion;
@@ -1081,6 +1230,12 @@ export function updateVisualScene(
     .014
   );
   typography.group.scale.setScalar(ts);
+
+  typography.group.children.forEach(mesh=>{
+    if(mesh.isMesh){
+      mesh.quaternion.slerp(camera.quaternion,.065);
+    }
+  });
 
   lightA.color.copy(state.palette[0]);
   lightB.color.copy(state.palette[1]||state.palette[0]);
