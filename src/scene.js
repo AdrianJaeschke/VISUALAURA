@@ -134,7 +134,7 @@ function createRibbonGeometry(){
   return {geometry:geo,centers};
 }
 
-function createBandMaterial(){
+function createBandMaterial(reflectionTexture){
   return new THREE.ShaderMaterial({
     side:THREE.DoubleSide,
     transparent:true,
@@ -156,6 +156,12 @@ function createBandMaterial(){
       uFilmThickness:{value:P.material.band.filmThickness},
       uWhiteness:{value:P.material.band.whiteness},
       uSpectralSaturation:{value:P.material.band.spectralSaturation},
+      uFocusPhase:{value:0},
+      uFocusWidth:{value:P.material.band.focusWidth},
+      uFocusColorBoost:{value:P.material.band.focusColorBoost},
+      uFocusReflection:{value:P.material.band.focusReflection},
+      uReflectionMap:{value:reflectionTexture||null},
+      uReflectionActive:{value:0},
       uDepth:{value:1},
       uCaseTwist:{value:0},
       uIridescence:{value:1}
@@ -204,6 +210,9 @@ function createBandMaterial(){
       uniform float uTime,uMotion,uOpacity,uBrightness,uEdgeGlow;
       uniform float uFresnelGlow,uWhiteSpecular,uSpeed,uIridescence;
       uniform float uPearlStrength,uFilmThickness,uWhiteness,uSpectralSaturation;
+      uniform float uFocusPhase,uFocusWidth,uFocusColorBoost,uFocusReflection;
+      uniform float uReflectionActive;
+      uniform sampler2D uReflectionMap;
       uniform vec3 uA,uB,uC;
 
       varying vec3 vBary;
@@ -220,6 +229,11 @@ function createBandMaterial(){
 
       float luma(vec3 c){
         return dot(c,vec3(.299,.587,.114));
+      }
+
+      float circularDistance(float a,float b){
+        float d=abs(a-b);
+        return min(d,1.-d);
       }
 
       vec3 thinFilmPearl(float cosTheta,float phaseOffset){
@@ -246,6 +260,9 @@ function createBandMaterial(){
         float cosTheta=abs(dot(N,V));
         float fres=pow(1.-cosTheta,1.38);
         float edge=edgeFactor();
+        float focusDistance=circularDistance(vPhase,uFocusPhase);
+        float focusMask=1.-smoothstep(0.,max(.001,uFocusWidth),focusDistance);
+        float focusCore=1.-smoothstep(0.,max(.001,uFocusWidth*.46),focusDistance);
 
         float phaseOffset=
           vPhase*2.2+
@@ -275,12 +292,40 @@ function createBandMaterial(){
         float facetShade=.88+vFacet*.16;
         col*=facetShade;
 
-        // Case palette only whispers into the grazing interference.
+        // Case palette stays subtle globally, but blooms into color around the active viewpoint.
         vec3 caseTint=mix(uA,uB,.5+.5*sin(vPhase*6.28318));
         caseTint=mix(caseTint,uC,.24);
         col=mix(col,col*caseTint,pearlMask*.07);
 
+        vec3 focusIris=mix(pearl,caseTint,.38);
+        float focusColor=clamp(focusMask*uFocusColorBoost,0.,1.5);
+        col=mix(col,focusIris,clamp(focusColor*.34,0.,.62));
+        col+=pearl*focusColor*.14;
+
+        // Reflection coordinates are derived from the view vector, so the live camera shifts with viewpoint.
+        vec3 reflectedDir=reflect(-V,N);
+        vec2 reflectionUv=clamp(
+          vec2(.5+reflectedDir.x*.42,.5-reflectedDir.y*.42),
+          vec2(.02),
+          vec2(.98)
+        );
+        vec3 reflected=texture2D(uReflectionMap,reflectionUv).rgb;
+        float reflectionMask=
+          focusMask*
+          uFocusReflection*
+          uReflectionActive*
+          (.32+fres*.68);
+        col=mix(
+          col,
+          reflected*1.08+focusIris*.16+vec3(.06),
+          clamp(reflectionMask*.62,0.,.76)
+        );
+
         float whiteSpec=pow(max(cosTheta,0.),18.)*uWhiteSpecular;
+        whiteSpec+=
+          pow(max(cosTheta,0.),10.)*
+          focusCore*
+          uWhiteSpecular*.42;
         col+=vec3(1.)*whiteSpec;
         col+=vec3(1.)*edge*uEdgeGlow*.28;
         col+=pearl*fres*uFresnelGlow*.22;
@@ -828,7 +873,7 @@ export async function createVisualScene(stage,cases,videoTexture){
     "centripetal",
     .5
   );
-  const bandMaterial=createBandMaterial();
+  const bandMaterial=createBandMaterial(videoTexture);
   const bandMesh=new THREE.Mesh(bandGeometry,bandMaterial);
   bandMesh.renderOrder=4;
   root.add(bandMesh);
@@ -993,6 +1038,9 @@ export async function createVisualScene(stage,cases,videoTexture){
     bandMaterial.uniforms.uFilmThickness.value=P.material.band.filmThickness;
     bandMaterial.uniforms.uWhiteness.value=P.material.band.whiteness;
     bandMaterial.uniforms.uSpectralSaturation.value=P.material.band.spectralSaturation;
+    bandMaterial.uniforms.uFocusWidth.value=P.material.band.focusWidth;
+    bandMaterial.uniforms.uFocusColorBoost.value=P.material.band.focusColorBoost;
+    bandMaterial.uniforms.uFocusReflection.value=P.material.band.focusReflection;
 
     bandWireMaterial.uniforms.uGlow.value=P.material.wire.glow;
     bandWireMaterial.uniforms.uOpacity.value=Math.min(1,P.material.wire.opacity+.18);
@@ -1177,6 +1225,13 @@ export function updateVisualScene(
     humanVX*R.band.velocityTilt*.15-
     humanVY*R.band.velocityTilt*.12;
   bandMaterial.uniforms.uIridescence.value=state.iridescenceBias;
+  bandMaterial.uniforms.uFocusPhase.value=view.t;
+  bandMaterial.uniforms.uFocusWidth.value=P.material.band.focusWidth;
+  bandMaterial.uniforms.uFocusColorBoost.value=P.material.band.focusColorBoost;
+  bandMaterial.uniforms.uFocusReflection.value=P.material.band.focusReflection;
+  bandMaterial.uniforms.uReflectionActive.value=cameraMotion.active
+    ?THREE.MathUtils.clamp(.45+(cameraMotion.presence||0)*.75,0,1)
+    :0;
 
   bandWireMaterial.uniforms.uTime.value=time;
   bandWireMaterial.uniforms.uMotion.value=motion;
