@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import {CASES} from "./cases.js";
+import {loadCases} from "./cms.js";
 import {createInterpreter} from "./interpreter.js";
 import {createCameraInput} from "./camera-input.js";
 import {createVisualScene,updateVisualScene} from "./scene.js";
@@ -7,6 +7,7 @@ import {createVisualScene,updateVisualScene} from "./scene.js";
 const isMobile=matchMedia("(pointer: coarse)").matches||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const el=id=>document.getElementById(id);
 const video=el("bg-video"),mode=el("mode-label"),intro=el("intro"),dots=el("case-dots"),title=el("case-title"),kicker=el("case-kicker"),detail=el("case-detail");
+const CASES=await loadCases();
 const cameraInput=createCameraInput(video,isMobile),interpret=createInterpreter(CASES),visual=createVisualScene(el("stage"),CASES,cameraInput.texture);
 let activeCase=0,state=interpret(CASES[0]),targetState=state,wheelLock=false;
 const pointer=new THREE.Vector2(),targetPointer=new THREE.Vector2(),gyroTarget=new THREE.Vector2();
