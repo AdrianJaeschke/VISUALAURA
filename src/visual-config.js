@@ -5,10 +5,10 @@ export const VISUAL_PARAMS={
   },
 
   bloom:{
-    strength:.58,
-    radius:.42,
-    threshold:.82,
-    motionBoost:.10
+    strength:.46,
+    radius:.32,
+    threshold:.92,
+    motionBoost:.06
   },
 
   postfx:{
@@ -106,18 +106,22 @@ export const VISUAL_PARAMS={
 
   material:{
     band:{
-      opacity:.78,
-      brightness:1.12,
-      edgeGlow:1.08,
-      fresnelGlow:.76,
-      whiteSpecular:.20,
-      speed:.16
+      opacity:.64,
+      brightness:1.04,
+      edgeGlow:.42,
+      fresnelGlow:.34,
+      whiteSpecular:.72,
+      speed:.08,
+      pearlStrength:.82,
+      filmThickness:1.18,
+      whiteness:.88,
+      spectralSaturation:.72
     },
 
     wire:{
-      opacity:.50,
-      glow:1.02,
-      speed:.12
+      opacity:.48,
+      glow:.78,
+      speed:.10
     },
 
     points:{
