@@ -6,7 +6,6 @@ import { ShaderPass } from "https://unpkg.com/three@0.164.1/examples/jsm/postpro
 import { OutputPass } from "https://unpkg.com/three@0.164.1/examples/jsm/postprocessing/OutputPass.js";
 import { VISUAL_PARAMS as P } from "./visual-config.js";
 
-const Y_AXIS=new THREE.Vector3(0,1,0);
 let ACTIVE_SEED=P.generation.seed;
 
 function rand(a,b=1){
@@ -15,299 +14,586 @@ function rand(a,b=1){
   )%1;
 }
 
-function triangleGeometry(){
-  const h=Math.sqrt(3)/2;
+function pushTriangle(targets,a,b,c,phase,facet){
+  const {positions,uvs,bary,phases,facets}=targets;
+  const verts=[a,b,c];
+  const triUvs=[[0,0],[1,0],[.5,1]];
+  const triBary=[[1,0,0],[0,1,0],[0,0,1]];
+
+  for(let i=0;i<3;i++){
+    positions.push(verts[i].x,verts[i].y,verts[i].z);
+    uvs.push(triUvs[i][0],triUvs[i][1]);
+    bary.push(...triBary[i]);
+    phases.push(phase);
+    facets.push(facet);
+  }
+}
+
+function createRibbonGeometry(){
+  const C=P.composition.band;
+  const n=C.segments;
+  const inner=[];
+  const outer=[];
+
+  for(let i=0;i<n;i++){
+    const t=i/n;
+    const a=t*Math.PI*2;
+
+    const radialNoise=
+      Math.sin(a*2.15+.5)*C.radiusNoise*.16+
+      Math.sin(a*4.7+1.6)*C.radiusNoise*.09+
+      (rand(i,1.7)-.5)*C.radiusNoise*.13;
+
+    const radius=C.radius*(1+radialNoise);
+    const center=new THREE.Vector3(
+      Math.cos(a)*radius,
+      Math.sin(a)*radius*C.yScale+
+        Math.sin(a*2.8+.7)*.16,
+      Math.sin(a*2.05+.4)*C.depth*.58+
+        Math.cos(a*3.65+1.1)*C.depth*.22
+    );
+
+    const radial=new THREE.Vector3(
+      Math.cos(a),
+      Math.sin(a)*C.yScale,
+      0
+    ).normalize();
+
+    const width=C.width*(
+      1+
+      Math.sin(a*3.15+1.2)*C.widthNoise*.22+
+      (rand(i,2.9)-.5)*C.widthNoise*.28
+    );
+
+    const foldA=
+      Math.sin(a*4.2+.6)*C.fold+
+      (rand(i,3.8)-.5)*C.fold*.28;
+    const foldB=
+      Math.cos(a*3.35+1.7)*C.fold+
+      (rand(i,4.6)-.5)*C.fold*.28;
+
+    const twist=Math.sin(a*2.4+.8)*C.twist;
+    const tangent=new THREE.Vector3(
+      -Math.sin(a),
+      Math.cos(a)*C.yScale,
+      Math.cos(a*2.05+.4)*C.depth*.52
+    ).normalize();
+
+    const binormal=new THREE.Vector3().crossVectors(tangent,radial).normalize();
+    const widthDir=radial.clone()
+      .multiplyScalar(Math.cos(twist))
+      .addScaledVector(binormal,Math.sin(twist))
+      .normalize();
+
+    outer.push(
+      center.clone()
+        .addScaledVector(widthDir,width*.5)
+        .addScaledVector(binormal,foldA*.34)
+    );
+
+    inner.push(
+      center.clone()
+        .addScaledVector(widthDir,-width*.5)
+        .addScaledVector(binormal,foldB*.34)
+    );
+  }
+
+  const data={
+    positions:[],
+    uvs:[],
+    bary:[],
+    phases:[],
+    facets:[]
+  };
+
+  for(let i=0;i<n;i++){
+    const j=(i+1)%n;
+    const phase=i/n;
+    const facetA=.28+rand(i,7.1)*.72;
+    const facetB=.28+rand(i,8.3)*.72;
+
+    if(i%2===0){
+      pushTriangle(data,outer[i],inner[i],outer[j],phase,facetA);
+      pushTriangle(data,outer[j],inner[i],inner[j],phase,facetB);
+    }else{
+      pushTriangle(data,outer[i],inner[i],inner[j],phase,facetA);
+      pushTriangle(data,outer[i],inner[j],outer[j],phase,facetB);
+    }
+  }
+
   const geo=new THREE.BufferGeometry();
-
-  geo.setAttribute("position",new THREE.Float32BufferAttribute([
-    0,h*2/3,0,
-    -.5,-h/3,0,
-    .5,-h/3,0
-  ],3));
-
-  geo.setAttribute("uv",new THREE.Float32BufferAttribute([
-    .5,1,
-    0,0,
-    1,0
-  ],2));
-
-  geo.setAttribute("bary",new THREE.Float32BufferAttribute([
-    1,0,0,
-    0,1,0,
-    0,0,1
-  ],3));
-
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(data.positions,3));
+  geo.setAttribute("uv",new THREE.Float32BufferAttribute(data.uvs,2));
+  geo.setAttribute("bary",new THREE.Float32BufferAttribute(data.bary,3));
+  geo.setAttribute("phase",new THREE.Float32BufferAttribute(data.phases,1));
+  geo.setAttribute("facet",new THREE.Float32BufferAttribute(data.facets,1));
   geo.computeVertexNormals();
+  geo.computeBoundingSphere();
   return geo;
 }
 
-function createReflectiveMaterial(videoTexture){
+function createBandMaterial(){
   return new THREE.ShaderMaterial({
     side:THREE.DoubleSide,
     transparent:true,
     depthWrite:false,
     uniforms:{
       uTime:{value:0},
-      uVideo:{value:videoTexture},
+      uMotion:{value:0},
+      uHuman:{value:new THREE.Vector2()},
       uA:{value:new THREE.Color("#74f7ff")},
       uB:{value:new THREE.Color("#ff4ecf")},
       uC:{value:new THREE.Color("#7b69ff")},
-      uMotion:{value:0},
-      uGlitch:{value:.08},
-      uSaturation:{value:P.material.reflection.saturation},
-      uBrightness:{value:P.material.reflection.brightness},
-      uBaseLift:{value:P.material.reflection.baseLift},
-      uEdgeGlow:{value:P.material.reflection.edgeGlow},
-      uFresnelGlow:{value:P.material.reflection.fresnelGlow},
-      uOpacity:{value:P.material.reflection.opacity},
-      uPixelGrid:{value:new THREE.Vector2(...P.material.reflection.pixelGrid)}
+      uOpacity:{value:P.material.band.opacity},
+      uBrightness:{value:P.material.band.brightness},
+      uEdgeGlow:{value:P.material.band.edgeGlow},
+      uFresnelGlow:{value:P.material.band.fresnelGlow},
+      uWhiteSpecular:{value:P.material.band.whiteSpecular},
+      uSpeed:{value:P.material.band.speed},
+      uDepth:{value:1},
+      uCaseTwist:{value:0},
+      uIridescence:{value:1}
     },
     vertexShader:`
       attribute vec3 bary;
-      varying vec2 vUv;
+      attribute float phase;
+      attribute float facet;
+
+      uniform float uTime,uMotion,uDepth,uCaseTwist;
+      uniform vec2 uHuman;
+
       varying vec3 vBary;
       varying vec3 vWorld;
       varying vec3 vNormalW;
+      varying float vPhase;
+      varying float vFacet;
 
       void main(){
-        vUv=uv;
         vBary=bary;
-        vec4 world=modelMatrix*vec4(position,1.);
+        vPhase=phase;
+        vFacet=facet;
+
+        vec3 p=position;
+        p.z*=uDepth;
+
+        float twist=(phase-.5)*uCaseTwist;
+        float ct=cos(twist);
+        float st=sin(twist);
+        p.xy=mat2(ct,-st,st,ct)*p.xy;
+
+        float wave=
+          sin(phase*31.4159+uTime*.42)*
+          (.018+uMotion*.075);
+
+        p+=normal*wave;
+        p.z+=(p.x*uHuman.x+p.y*uHuman.y)*.018;
+
+        vec4 world=modelMatrix*vec4(p,1.);
         vWorld=world.xyz;
         vNormalW=normalize(mat3(modelMatrix)*normal);
         gl_Position=projectionMatrix*viewMatrix*world;
       }
     `,
     fragmentShader:`
-      uniform float uTime,uMotion,uGlitch,uSaturation,uBrightness,uBaseLift;
-      uniform float uEdgeGlow,uFresnelGlow,uOpacity;
-      uniform vec2 uPixelGrid;
-      uniform sampler2D uVideo;
-      uniform vec3 uA,uB,uC;
-
-      varying vec2 vUv;
-      varying vec3 vBary;
-      varying vec3 vWorld;
-      varying vec3 vNormalW;
-
-      float edgeFactor(){
-        vec3 d=fwidth(vBary);
-        vec3 a3=smoothstep(vec3(0.),d*1.45,vBary);
-        return 1.-min(min(a3.x,a3.y),a3.z);
-      }
-
-      float hash(vec2 p){
-        p=fract(p*vec2(123.34,456.21));
-        p+=dot(p,p+45.32);
-        return fract(p.x*p.y);
-      }
-
-      void main(){
-        vec2 uv=vUv;
-        float band=floor(uv.y*36.);
-        float glitch=step(.93,hash(vec2(band,floor(uTime*5.))))*uGlitch;
-        uv.x+=(hash(vec2(band,7.+floor(uTime*6.)))-.5)*.04*glitch;
-        uv=clamp(uv,0.,1.);
-
-        vec2 px=floor(uv*uPixelGrid)/uPixelGrid;
-        vec3 cam=texture2D(uVideo,px).rgb;
-        float lum=dot(cam,vec3(.299,.587,.114));
-        cam=mix(vec3(lum),cam,uSaturation);
-
-        vec3 N=normalize(vNormalW);
-        vec3 V=normalize(cameraPosition-vWorld);
-        float fres=pow(1.-max(dot(N,V),0.),2.05);
-
-        vec3 iri=.5+.5*cos(
-          6.28318*(fres+vec3(0.,.33,.67))+vec3(0.,1.35,2.15)
-        );
-        iri=mix(uA,uB,iri.r);
-        iri=mix(iri,uC,.34+fres*.46);
-
-        float edge=edgeFactor();
-        vec3 chrome=pow(max(cam,vec3(.001)),vec3(.78))*uBrightness;
-        chrome+=vec3(uBaseLift)+fres*.1;
-
-        vec3 col=chrome*(.56+fres*.34);
-        col+=iri*(edge*uEdgeGlow+fres*uFresnelGlow);
-        col+=vec3(1.)*edge*.20;
-        col+=iri*uMotion*.14;
-
-        gl_FragColor=vec4(col,uOpacity);
-      }
-    `
-  });
-}
-
-function createMoireMaterial(){
-  return new THREE.ShaderMaterial({
-    side:THREE.DoubleSide,
-    transparent:true,
-    depthWrite:false,
-    uniforms:{
-      uTime:{value:0},
-      uA:{value:new THREE.Color("#74f7ff")},
-      uB:{value:new THREE.Color("#ff4ecf")},
-      uC:{value:new THREE.Color("#7b69ff")},
-      uMoire:{value:1},
-      uZebra:{value:.7},
-      uMotion:{value:0},
-      uBlack:{value:P.material.moire.black},
-      uWhite:{value:P.material.moire.white},
-      uOpacity:{value:P.material.moire.opacity},
-      uFreqA:{value:P.material.moire.frequencyA},
-      uFreqB:{value:P.material.moire.frequencyB},
-      uRadialFreq:{value:P.material.moire.radialFrequency},
-      uZebraMix:{value:P.material.moire.zebraMix},
-      uEdgeGlow:{value:P.material.moire.edgeGlow}
-    },
-    vertexShader:`
-      attribute vec3 bary;
-      varying vec2 vUv;
-      varying vec3 vBary;
-      varying vec3 vWorld;
-      varying vec3 vNormalW;
-
-      void main(){
-        vUv=uv;
-        vBary=bary;
-        vec4 world=modelMatrix*vec4(position,1.);
-        vWorld=world.xyz;
-        vNormalW=normalize(mat3(modelMatrix)*normal);
-        gl_Position=projectionMatrix*viewMatrix*world;
-      }
-    `,
-    fragmentShader:`
-      uniform float uTime,uMoire,uZebra,uMotion;
-      uniform float uBlack,uWhite,uOpacity,uFreqA,uFreqB,uRadialFreq,uZebraMix,uEdgeGlow;
-      uniform vec3 uA,uB,uC;
-
-      varying vec2 vUv;
-      varying vec3 vBary;
-      varying vec3 vWorld;
-      varying vec3 vNormalW;
-
-      float edgeFactor(){
-        vec3 d=fwidth(vBary);
-        vec3 a3=smoothstep(vec3(0.),d*1.3,vBary);
-        return 1.-min(min(a3.x,a3.y),a3.z);
-      }
-
-      void main(){
-        vec2 p=(vUv-.5)*2.;
-
-        float a=sin((p.x+p.y*.23)*(uFreqA+uMoire*15.));
-        float b=sin((p.y-p.x*.18)*(uFreqB+uMoire*13.)+uTime*.08);
-        float radial=sin(length(p)*uRadialFreq-uTime*.05);
-
-        float moire=step(0.,a*b+radial*.15);
-        float zebra=step(0.,sin((p.x*.58+p.y)*(38.+uZebra*20.)));
-        float bw=mix(moire,zebra,uZebraMix);
-
-        vec3 base=mix(vec3(uBlack),vec3(uWhite),bw);
-
-        vec3 N=normalize(vNormalW);
-        vec3 V=normalize(cameraPosition-vWorld);
-        float fres=pow(1.-max(dot(N,V),0.),2.4);
-        float edge=edgeFactor();
-
-        vec3 iri=.5+.5*cos(
-          6.28318*(fres+vec3(0.,.33,.67))+vec3(0.,1.5,2.35)
-        );
-        iri=mix(uA,uB,iri.r);
-        iri=mix(iri,uC,.28+fres*.42);
-
-        vec3 col=base*.54;
-        col+=iri*edge*uEdgeGlow;
-        col+=iri*fres*.07;
-        col+=vec3(1.)*uMotion*.02;
-
-        gl_FragColor=vec4(col,uOpacity);
-      }
-    `
-  });
-}
-
-function createIridescentMaterial(){
-  return new THREE.ShaderMaterial({
-    side:THREE.DoubleSide,
-    transparent:true,
-    depthWrite:false,
-    uniforms:{
-      uTime:{value:0},
-      uA:{value:new THREE.Color("#74f7ff")},
-      uB:{value:new THREE.Color("#ff4ecf")},
-      uC:{value:new THREE.Color("#7b69ff")},
-      uMotion:{value:0},
-      uBrightness:{value:P.material.iridescent.brightness},
-      uOpacity:{value:P.material.iridescent.opacity},
-      uEdgeGlow:{value:P.material.iridescent.edgeGlow},
-      uFresnelGlow:{value:P.material.iridescent.fresnelGlow},
-      uSpeed:{value:P.material.iridescent.speed},
-      uCaseIridescence:{value:1}
-    },
-    vertexShader:`
-      attribute vec3 bary;
-      varying vec3 vBary;
-      varying vec3 vWorld;
-      varying vec3 vNormalW;
-      varying float vPhase;
-
-      void main(){
-        vBary=bary;
-        vec4 local=instanceMatrix*vec4(position,1.);
-        vec4 world=modelMatrix*local;
-        vWorld=world.xyz;
-        vNormalW=normalize(mat3(modelMatrix*instanceMatrix)*normal);
-        vPhase=instanceMatrix[3][0]*.17+instanceMatrix[3][1]*.23+instanceMatrix[3][2]*.19;
-        gl_Position=projectionMatrix*viewMatrix*world;
-      }
-    `,
-    fragmentShader:`
-      uniform float uTime,uMotion,uBrightness,uOpacity,uEdgeGlow,uFresnelGlow,uSpeed;
-      uniform float uCaseIridescence;
+      uniform float uTime,uMotion,uOpacity,uBrightness,uEdgeGlow;
+      uniform float uFresnelGlow,uWhiteSpecular,uSpeed,uIridescence;
       uniform vec3 uA,uB,uC;
 
       varying vec3 vBary;
       varying vec3 vWorld;
       varying vec3 vNormalW;
       varying float vPhase;
+      varying float vFacet;
 
       float edgeFactor(){
         vec3 d=fwidth(vBary);
-        vec3 a3=smoothstep(vec3(0.),d*1.25,vBary);
+        vec3 a3=smoothstep(vec3(0.),d*1.15,vBary);
         return 1.-min(min(a3.x,a3.y),a3.z);
       }
 
       void main(){
         vec3 N=normalize(vNormalW);
         vec3 V=normalize(cameraPosition-vWorld);
-        float fres=pow(1.-max(dot(N,V),0.),1.8);
+        float facing=max(dot(N,V),0.);
+        float fres=pow(1.-facing,1.65);
         float edge=edgeFactor();
 
-        float spectralPhase=
-          fres*1.45+
-          vPhase+
-          uTime*uSpeed+
-          sin((vWorld.x+vWorld.y)*.8+uTime*.13)*.08;
+        float spectral=
+          fres*1.5+
+          vPhase*1.8+
+          sin(vWorld.x*.46+vWorld.y*.38+uTime*uSpeed)*.18;
 
-        vec3 spectrum=.5+.5*cos(
-          6.28318*(spectralPhase+vec3(0.,.333,.667))
+        vec3 prism=.5+.5*cos(
+          6.28318*(spectral+vec3(0.,.333,.667))
         );
 
-        vec3 palette=mix(uA,uB,spectrum.r);
-        palette=mix(palette,uC,spectrum.b*.48);
-        palette*=uCaseIridescence;
+        vec3 palette=mix(uA,uB,prism.r);
+        palette=mix(palette,uC,prism.b*.48);
+        palette*=uIridescence;
 
-        vec3 col=palette*(.34+fres*uFresnelGlow);
+        float facetLight=.42+vFacet*.74;
+        vec3 col=palette*facetLight*(.38+fres*uFresnelGlow);
         col+=palette*edge*uEdgeGlow;
-        col+=vec3(1.)*edge*.08;
-        col*=uBrightness+uMotion*.14;
+        col+=vec3(1.)*pow(facing,8.)*uWhiteSpecular;
+        col+=vec3(1.)*edge*.10;
+        col*=uBrightness+uMotion*.13;
 
-        gl_FragColor=vec4(col,uOpacity);
+        float alpha=uOpacity*(.58+vFacet*.42);
+        gl_FragColor=vec4(col,alpha);
       }
     `
   });
+}
+
+function createWireMaterial(opacity=P.material.wire.opacity){
+  return new THREE.ShaderMaterial({
+    transparent:true,
+    depthWrite:false,
+    blending:THREE.AdditiveBlending,
+    uniforms:{
+      uTime:{value:0},
+      uMotion:{value:0},
+      uA:{value:new THREE.Color("#74f7ff")},
+      uB:{value:new THREE.Color("#ff4ecf")},
+      uC:{value:new THREE.Color("#7b69ff")},
+      uOpacity:{value:opacity},
+      uGlow:{value:P.material.wire.glow},
+      uSpeed:{value:P.material.wire.speed}
+    },
+    vertexShader:`
+      uniform float uTime,uMotion;
+      varying vec3 vLocal;
+
+      void main(){
+        vec3 p=position;
+        float pulse=sin((p.x+p.y+p.z)*1.7+uTime*.35)*uMotion*.025;
+        p+=normalize(p+vec3(.001))*pulse;
+        vLocal=p;
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+      }
+    `,
+    fragmentShader:`
+      uniform float uTime,uOpacity,uGlow,uSpeed;
+      uniform vec3 uA,uB,uC;
+      varying vec3 vLocal;
+
+      void main(){
+        float t=.5+.5*sin(
+          vLocal.x*.7+vLocal.y*.9-vLocal.z*.5+uTime*uSpeed
+        );
+        vec3 col=mix(uA,uB,t);
+        col=mix(col,uC,.22+.34*sin(t*3.14159));
+        col=mix(col,vec3(1.),.20);
+        gl_FragColor=vec4(col*uGlow,uOpacity);
+      }
+    `
+  });
+}
+
+function createPointMaterial(){
+  return new THREE.ShaderMaterial({
+    transparent:true,
+    depthWrite:false,
+    blending:THREE.AdditiveBlending,
+    uniforms:{
+      uA:{value:new THREE.Color("#ffffff")},
+      uB:{value:new THREE.Color("#74f7ff")},
+      uOpacity:{value:P.material.points.opacity},
+      uSize:{value:P.material.points.size},
+      uPixelRatio:{value:Math.min(devicePixelRatio,2)}
+    },
+    vertexShader:`
+      uniform float uSize,uPixelRatio;
+      varying float vDepth;
+
+      void main(){
+        vec4 mv=modelViewMatrix*vec4(position,1.);
+        vDepth=clamp((-mv.z-2.)/12.,0.,1.);
+        gl_PointSize=uSize*uPixelRatio*900./max(1.,-mv.z);
+        gl_Position=projectionMatrix*mv;
+      }
+    `,
+    fragmentShader:`
+      uniform vec3 uA,uB;
+      uniform float uOpacity;
+      varying float vDepth;
+
+      void main(){
+        vec2 p=gl_PointCoord-.5;
+        float d=length(p);
+        if(d>.5)discard;
+        float core=1.-smoothstep(.05,.5,d);
+        vec3 col=mix(uA,uB,vDepth);
+        gl_FragColor=vec4(col,core*uOpacity);
+      }
+    `
+  });
+}
+
+function createTriangleFrameGeometry(){
+  const h=Math.sqrt(3)/2;
+  const a=new THREE.Vector3(0,h*2/3,0);
+  const b=new THREE.Vector3(-.5,-h/3,0);
+  const c=new THREE.Vector3(.5,-h/3,0);
+
+  const positions=[
+    a.x,a.y,a.z,b.x,b.y,b.z,
+    b.x,b.y,b.z,c.x,c.y,c.z,
+    c.x,c.y,c.z,a.x,a.y,a.z
+  ];
+
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+  return geo;
+}
+
+function createWireAura(){
+  const C=P.composition.wireAura;
+  const group=new THREE.Group();
+  const mat=createWireMaterial();
+  const networkMat=createWireMaterial(C.networkOpacity);
+  const frameGeo=createTriangleFrameGeometry();
+
+  const frames=[];
+  const anchors=[];
+
+  for(let i=0;i<C.count;i++){
+    const angle=rand(i,20.4)*Math.PI*2;
+    const radius=THREE.MathUtils.lerp(C.radiusMin,C.radiusMax,rand(i,21.8));
+    const anchor=new THREE.Vector3(
+      Math.cos(angle)*radius,
+      Math.sin(angle)*radius*C.yScale,
+      (rand(i,22.9)-.5)*C.zSpread-.35
+    );
+
+    anchors.push(anchor.clone());
+
+    const line=new THREE.LineSegments(frameGeo,mat);
+    const size=THREE.MathUtils.lerp(C.sizeMin,C.sizeMax,Math.pow(rand(i,23.7),.75));
+    line.position.copy(anchor);
+    line.rotation.set(
+      (rand(i,24.8)-.5)*1.2,
+      (rand(i,25.6)-.5)*1.2,
+      rand(i,26.4)*Math.PI*2
+    );
+    line.scale.setScalar(size);
+    line.userData.basePosition=anchor.clone();
+    line.userData.baseRotation=line.rotation.clone();
+    line.userData.baseScale=size;
+    line.userData.phase=rand(i,27.1)*Math.PI*2;
+    frames.push(line);
+    group.add(line);
+  }
+
+  const networkPositions=[];
+  for(let i=0;i<anchors.length;i++){
+    const j=(i+1)%anchors.length;
+    const k=(i+C.networkStride)%anchors.length;
+
+    for(const target of [j,k]){
+      if(rand(i,target*.17)<.68){
+        networkPositions.push(
+          anchors[i].x,anchors[i].y,anchors[i].z,
+          anchors[target].x,anchors[target].y,anchors[target].z
+        );
+      }
+    }
+  }
+
+  const networkGeo=new THREE.BufferGeometry();
+  networkGeo.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(networkPositions,3)
+  );
+
+  const network=new THREE.LineSegments(networkGeo,networkMat);
+  group.add(network);
+
+  const pointGeo=new THREE.BufferGeometry();
+  pointGeo.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(
+      anchors.flatMap(p=>[p.x,p.y,p.z]),
+      3
+    )
+  );
+
+  const pointMat=createPointMaterial();
+  const points=new THREE.Points(pointGeo,pointMat);
+  group.add(points);
+
+  return {
+    group,
+    frames,
+    anchors,
+    mat,
+    networkMat,
+    pointMat
+  };
+}
+
+function trackedText(ctx,text,x,y,tracking,align="left"){
+  const chars=[...String(text||"")];
+  const widths=chars.map(ch=>ctx.measureText(ch).width);
+  const total=widths.reduce((a,b)=>a+b,0)+tracking*Math.max(0,chars.length-1);
+
+  let cursor=x;
+  if(align==="center")cursor=x-total/2;
+  if(align==="right")cursor=x-total;
+
+  for(let i=0;i<chars.length;i++){
+    ctx.fillText(chars[i],cursor,y);
+    cursor+=widths[i]+tracking;
+  }
+}
+
+function wrapText(ctx,text,maxWidth){
+  const words=String(text||"").split(/\s+/).filter(Boolean);
+  const lines=[];
+  let line="";
+
+  for(const word of words){
+    const test=line?line+" "+word:word;
+    if(ctx.measureText(test).width>maxWidth&&line){
+      lines.push(line);
+      line=word;
+    }else{
+      line=test;
+    }
+  }
+
+  if(line)lines.push(line);
+  return lines;
+}
+
+function createTextTexture({
+  eyebrow="",
+  title="",
+  body="",
+  align="left",
+  width=1600,
+  height=620
+}){
+  const canvas=document.createElement("canvas");
+  canvas.width=width;
+  canvas.height=height;
+  const ctx=canvas.getContext("2d");
+
+  ctx.clearRect(0,0,width,height);
+  const x=align==="left"?64:align==="right"?width-64:width/2;
+
+  ctx.textBaseline="top";
+  ctx.fillStyle="rgba(255,255,255,.56)";
+  ctx.font='500 28px "Turret Road", Arial, sans-serif';
+  trackedText(ctx,eyebrow.toUpperCase(),x,52,8,align);
+
+  ctx.fillStyle="rgba(255,255,255,.95)";
+  ctx.font='600 76px "Turret Road", Arial, sans-serif';
+  trackedText(ctx,title.toUpperCase(),x,126,5,align);
+
+  ctx.fillStyle="rgba(255,255,255,.66)";
+  ctx.font='500 31px "Turret Road", Arial, sans-serif';
+  ctx.textAlign=align;
+
+  const bodyLines=wrapText(ctx,body,width-128).slice(0,5);
+  bodyLines.forEach((line,i)=>{
+    ctx.fillText(line,x,256+i*52);
+  });
+
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  texture.minFilter=THREE.LinearFilter;
+  texture.magFilter=THREE.LinearFilter;
+  return texture;
+}
+
+function createTextPlane(options,position,scale){
+  const texture=createTextTexture(options);
+  const material=new THREE.MeshBasicMaterial({
+    map:texture,
+    transparent:true,
+    opacity:P.composition.typography.opacity,
+    depthWrite:false,
+    depthTest:false,
+    toneMapped:false
+  });
+
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1),material);
+  mesh.position.copy(position);
+  mesh.scale.copy(scale);
+  mesh.renderOrder=300;
+  return mesh;
+}
+
+function replaceTextPlaneTexture(mesh,options){
+  mesh.material.map?.dispose?.();
+  mesh.material.map=createTextTexture(options);
+  mesh.material.needsUpdate=true;
+}
+
+function createTypography(cases){
+  const group=new THREE.Group();
+
+  const brand=createTextPlane(
+    {
+      eyebrow:"Interactive Installation",
+      title:"Visual Aura",
+      body:"Reactive polygonal field / body / data / light"
+    },
+    new THREE.Vector3(-4.05,2.45,.65),
+    new THREE.Vector3(3.55,1.37,1)
+  );
+
+  const caseLabel=createTextPlane(
+    {
+      eyebrow:"Case 01",
+      title:cases?.[0]?.title||"Case",
+      body:cases?.[0]?.description||""
+    },
+    new THREE.Vector3(4.05,2.0,.25),
+    new THREE.Vector3(3.25,1.52,1)
+  );
+
+  const left=createTextPlane(
+    {
+      eyebrow:"Human movement",
+      title:"Reactive",
+      body:"Movement deforms the band, wire field and light response in real time."
+    },
+    new THREE.Vector3(-4.28,-1.72,-.25),
+    new THREE.Vector3(2.9,1.32,1)
+  );
+
+  const right=createTextPlane(
+    {
+      eyebrow:"Generative system",
+      title:"Data Aura",
+      body:"Triangulated ribbon / iridescent spectrum / spatial typography"
+    },
+    new THREE.Vector3(4.18,-1.72,-.20),
+    new THREE.Vector3(2.75,1.30,1)
+  );
+
+  const top=createTextPlane(
+    {
+      eyebrow:"Light / sound / movement / data",
+      title:"Realtime",
+      body:"Three.js generative spatial system"
+    },
+    new THREE.Vector3(.25,3.35,-.75),
+    new THREE.Vector3(2.85,1.00,1)
+  );
+
+  group.add(brand,caseLabel,left,right,top);
+
+  return {
+    group,
+    brand,
+    caseLabel,
+    left,
+    right,
+    top
+  };
 }
 
 function createGlobalDitherPass(){
@@ -316,12 +602,10 @@ function createGlobalDitherPass(){
       tDiffuse:{value:null},
       uStrength:{value:P.postfx.dither.strength},
       uScale:{value:P.postfx.dither.scale},
-      uLevels:{value:P.postfx.dither.levels},
-      uTime:{value:0}
+      uLevels:{value:P.postfx.dither.levels}
     },
     vertexShader:`
       varying vec2 vUv;
-
       void main(){
         vUv=uv;
         gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
@@ -329,10 +613,7 @@ function createGlobalDitherPass(){
     `,
     fragmentShader:`
       uniform sampler2D tDiffuse;
-      uniform float uStrength;
-      uniform float uScale;
-      uniform float uLevels;
-      uniform float uTime;
+      uniform float uStrength,uScale,uLevels;
       varying vec2 vUv;
 
       float bayer4(vec2 p){
@@ -346,21 +627,18 @@ function createGlobalDitherPass(){
           if(x<3.0)return 2.0/16.0;
           return 10.0/16.0;
         }
-
         if(y<2.0){
           if(x<1.0)return 12.0/16.0;
           if(x<2.0)return 4.0/16.0;
           if(x<3.0)return 14.0/16.0;
           return 6.0/16.0;
         }
-
         if(y<3.0){
           if(x<1.0)return 3.0/16.0;
           if(x<2.0)return 11.0/16.0;
           if(x<3.0)return 1.0/16.0;
           return 9.0/16.0;
         }
-
         if(x<1.0)return 15.0/16.0;
         if(x<2.0)return 7.0/16.0;
         if(x<3.0)return 13.0/16.0;
@@ -368,45 +646,15 @@ function createGlobalDitherPass(){
       }
 
       void main(){
-        vec4 source=texture2D(tDiffuse,vUv);
-        float scale=max(.5,uScale);
+        vec4 src=texture2D(tDiffuse,vUv);
+        float threshold=bayer4(gl_FragCoord.xy/max(.5,uScale));
         float levels=max(2.0,uLevels);
-        float threshold=bayer4(gl_FragCoord.xy/scale);
-
-        vec3 stepped=floor(max(source.rgb,vec3(0.0))*(levels-1.0)+threshold)/(levels-1.0);
-        vec3 color=mix(source.rgb,stepped,clamp(uStrength,0.0,1.0));
-
-        gl_FragColor=vec4(color,source.a);
+        vec3 quant=floor(max(src.rgb,vec3(0.0))*(levels-1.0)+threshold)/(levels-1.0);
+        vec3 col=mix(src.rgb,quant,clamp(uStrength,0.0,1.0));
+        gl_FragColor=vec4(col,src.a);
       }
     `
   });
-}
-
-function makeRod(geometry,material,a,b,radius){
-  const mesh=new THREE.Mesh(geometry,material);
-  const delta=b.clone().sub(a);
-  const length=delta.length();
-
-  mesh.position.copy(a).add(b).multiplyScalar(.5);
-  mesh.quaternion.setFromUnitVectors(Y_AXIS,delta.clone().normalize());
-  mesh.scale.set(radius,length,radius);
-  return mesh;
-}
-
-function createWireTriangle(size,material,rodGeometry){
-  const h=Math.sqrt(3)/2;
-  const a=new THREE.Vector3(0,h*2/3*size,0);
-  const b=new THREE.Vector3(-.5*size,-h/3*size,0);
-  const c=new THREE.Vector3(.5*size,-h/3*size,0);
-
-  const group=new THREE.Group();
-  const radius=P.composition.outerWire.tubeRadius;
-
-  group.add(makeRod(rodGeometry,material,a,b,radius));
-  group.add(makeRod(rodGeometry,material,b,c,radius));
-  group.add(makeRod(rodGeometry,material,c,a,radius));
-
-  return group;
 }
 
 export async function createVisualScene(stage,cases,videoTexture){
@@ -414,18 +662,22 @@ export async function createVisualScene(stage,cases,videoTexture){
     ? Math.random()*100000
     : P.generation.seed;
 
-  const scene=new THREE.Scene();
-  scene.fog=new THREE.FogExp2(0x030306,.025);
+  if(document.fonts?.load){
+    try{await document.fonts.load('600 76px "Turret Road"');}catch{}
+  }
 
-  const camera=new THREE.PerspectiveCamera(52,innerWidth/innerHeight,.1,120);
-  camera.position.set(0,0,8.5);
+  const scene=new THREE.Scene();
+  scene.fog=new THREE.FogExp2(0x030306,.023);
+
+  const camera=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,120);
+  camera.position.set(0,0,9.1);
 
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.setSize(innerWidth,innerHeight);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.25;
+  renderer.toneMappingExposure=1.28;
   stage.appendChild(renderer.domElement);
 
   const composer=new EffectComposer(renderer);
@@ -448,160 +700,62 @@ export async function createVisualScene(stage,cases,videoTexture){
   composer.addPass(outputPass);
 
   const root=new THREE.Group();
+  root.rotation.set(
+    P.composition.band.rotationX,
+    P.composition.band.rotationY,
+    P.composition.band.rotationZ
+  );
   scene.add(root);
 
-  const triGeo=triangleGeometry();
+  // Central faceted amorphous ribbon.
+  const bandGeometry=createRibbonGeometry();
+  const bandMaterial=createBandMaterial();
+  const bandMesh=new THREE.Mesh(bandGeometry,bandMaterial);
+  bandMesh.renderOrder=4;
+  root.add(bandMesh);
 
-  // 1. One dominant webcam mirror triangle in the center.
-  const heroGroup=new THREE.Group();
-  root.add(heroGroup);
+  // Triangulated wire skin on the ribbon itself.
+  const bandWireMaterial=createWireMaterial(.78);
+  const bandWireGeometry=new THREE.WireframeGeometry(bandGeometry);
+  const bandWire=new THREE.LineSegments(bandWireGeometry,bandWireMaterial);
+  bandWire.renderOrder=5;
+  root.add(bandWire);
 
-  const reflectiveMat=createReflectiveMaterial(videoTexture);
-  const heroTriangle=new THREE.Mesh(triGeo,reflectiveMat);
-  heroTriangle.position.set(0,0,P.composition.hero.z);
-  heroTriangle.rotation.set(P.composition.hero.tiltX,P.composition.hero.tiltY,0);
-  heroTriangle.scale.setScalar(P.composition.hero.size);
-  heroTriangle.renderOrder=4;
-  heroTriangle.userData.baseScale=P.composition.hero.size;
-  heroGroup.add(heroTriangle);
+  // Sparse iridescent triangle-wire constellation around the band.
+  const wireAura=createWireAura();
+  root.add(wireAura.group);
 
-  // 2. Exactly three moire triangles, deliberately overlapping the hero.
-  const moireGroup=new THREE.Group();
-  root.add(moireGroup);
+  // Spatial typography around the installation.
+  const typography=createTypography(cases);
+  scene.add(typography.group);
 
-  const moireMat=createMoireMaterial();
-  const moireTriangles=[];
+  // Minimal lighting for translucent/specular read.
+  scene.add(new THREE.AmbientLight(0xffffff,.15));
 
-  for(let i=0;i<P.composition.moire.count;i++){
-    const angle=-Math.PI/2+i*Math.PI*2/P.composition.moire.count;
-    const size=THREE.MathUtils.lerp(
-      P.composition.moire.sizeMin,
-      P.composition.moire.sizeMax,
-      rand(i,31.2)
-    );
+  const key=new THREE.PointLight(0xffffff,8.5,34);
+  const lightA=new THREE.PointLight(0x74f7ff,7.2,32);
+  const lightB=new THREE.PointLight(0xff4ecf,6.6,32);
 
-    const mesh=new THREE.Mesh(triGeo,moireMat);
-    mesh.position.set(
-      Math.cos(angle)*P.composition.moire.radius,
-      Math.sin(angle)*P.composition.moire.radius*P.composition.moire.yRatio,
-      P.composition.moire.zStart+i*P.composition.moire.zStep
-    );
-    mesh.rotation.set(
-      (rand(i,32.1)-.5)*.13,
-      (rand(i,33.1)-.5)*.13,
-      angle*.22+(rand(i,34.1)-.5)*P.composition.moire.rotationJitter
-    );
-    mesh.scale.setScalar(size);
-    mesh.renderOrder=3;
+  key.position.set(3.8,4.8,6.4);
+  lightA.position.set(-4.8,1.2,4.0);
+  lightB.position.set(4.1,-3.3,-1.2);
+  scene.add(key,lightA,lightB);
 
-    mesh.userData.basePosition=mesh.position.clone();
-    mesh.userData.baseRotation=mesh.rotation.clone();
-    mesh.userData.baseScale=size;
-    mesh.userData.phase=rand(i,35.1)*Math.PI*2;
+  let activeCaseIndex=-1;
 
-    moireTriangles.push(mesh);
-    moireGroup.add(mesh);
-  }
+  function setCase(index){
+    if(index===activeCaseIndex)return;
+    activeCaseIndex=index;
 
-  // 3. Many small iridescent triangles, compact around the same center.
-  const auraGroup=new THREE.Group();
-  root.add(auraGroup);
+    const c=cases?.[index];
+    if(!c)return;
 
-  const iridescentMat=createIridescentMaterial();
-  const auraSeeds=[];
-  const auraCount=P.composition.aura.count;
-  const auraMesh=new THREE.InstancedMesh(triGeo,iridescentMat,auraCount);
-  auraMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  auraMesh.renderOrder=2;
-  auraGroup.add(auraMesh);
-
-  const temp=new THREE.Object3D();
-
-  for(let i=0;i<auraCount;i++){
-    const angle=rand(i,41.2)*Math.PI*2;
-    const radialT=Math.pow(rand(i,42.7),P.composition.aura.radialPower);
-    const radius=THREE.MathUtils.lerp(
-      P.composition.aura.radiusMin,
-      P.composition.aura.radiusMax,
-      radialT
-    );
-
-    const basePosition=new THREE.Vector3(
-      Math.cos(angle)*radius*P.composition.aura.ellipsoid[0],
-      Math.sin(angle)*radius*P.composition.aura.ellipsoid[1],
-      (rand(i,43.9)-.5)*P.composition.aura.depthSpread*P.composition.aura.ellipsoid[2]-.20
-    );
-
-    const baseRotation=new THREE.Euler(
-      (rand(i,44.1)-.5)*.58,
-      (rand(i,45.3)-.5)*.58,
-      rand(i,46.7)*Math.PI*2
-    );
-
-    const size=THREE.MathUtils.lerp(
-      P.composition.aura.sizeMin,
-      P.composition.aura.sizeMax,
-      Math.pow(rand(i,47.4),1.18)
-    );
-
-    temp.position.copy(basePosition);
-    temp.rotation.copy(baseRotation);
-    temp.scale.setScalar(size);
-    temp.updateMatrix();
-    auraMesh.setMatrixAt(i,temp.matrix);
-
-    auraSeeds.push({
-      position:basePosition,
-      rotation:baseRotation,
-      scale:size,
-      phase:rand(i,48.8)*Math.PI*2,
-      depth:rand(i,49.2)
+    replaceTextPlaneTexture(typography.caseLabel,{
+      eyebrow:`Case ${String(index+1).padStart(2,"0")}`,
+      title:c.title||"Case",
+      body:c.description||""
     });
   }
-
-  auraMesh.instanceMatrix.needsUpdate=true;
-
-  // 4. One large white glossy triangle wireframe surrounding the cluster.
-  const outerWireGroup=new THREE.Group();
-  root.add(outerWireGroup);
-
-  const outerWireMat=new THREE.MeshPhysicalMaterial({
-    color:new THREE.Color(P.composition.outerWire.color),
-    emissive:new THREE.Color(P.composition.outerWire.emissiveColor),
-    emissiveIntensity:P.composition.outerWire.emissiveIntensity,
-    metalness:P.composition.outerWire.metalness,
-    roughness:P.composition.outerWire.roughness,
-    clearcoat:P.composition.outerWire.clearcoat,
-    clearcoatRoughness:P.composition.outerWire.clearcoatRoughness,
-    side:THREE.DoubleSide
-  });
-
-  const rodGeometry=new THREE.CylinderGeometry(1,1,1,8,1,false);
-  const outerWire=createWireTriangle(
-    P.composition.outerWire.size,
-    outerWireMat,
-    rodGeometry
-  );
-
-  outerWire.position.set(0,0,P.composition.outerWire.z);
-  outerWire.rotation.set(
-    P.composition.outerWire.tiltX,
-    P.composition.outerWire.tiltY,
-    P.composition.outerWire.tiltZ
-  );
-  outerWireGroup.add(outerWire);
-
-  scene.add(new THREE.AmbientLight(0xffffff,.16));
-
-  const key=new THREE.PointLight(0xffffff,7.5,34);
-  const colorLightA=new THREE.PointLight(0x74f7ff,6.5,30);
-  const colorLightB=new THREE.PointLight(0xff4ecf,5.5,30);
-
-  key.position.set(3.4,4.3,6.2);
-  colorLightA.position.set(-4.2,1.4,3.8);
-  colorLightB.position.set(3.7,-3.2,-1);
-
-  scene.add(key,colorLightA,colorLightB);
 
   function applyParams(){
     bloomPass.strength=P.bloom.strength;
@@ -612,37 +766,32 @@ export async function createVisualScene(stage,cases,videoTexture){
     ditherPass.uniforms.uScale.value=P.postfx.dither.scale;
     ditherPass.uniforms.uLevels.value=P.postfx.dither.levels;
 
-    reflectiveMat.uniforms.uSaturation.value=P.material.reflection.saturation;
-    reflectiveMat.uniforms.uBrightness.value=P.material.reflection.brightness;
-    reflectiveMat.uniforms.uBaseLift.value=P.material.reflection.baseLift;
-    reflectiveMat.uniforms.uEdgeGlow.value=P.material.reflection.edgeGlow;
-    reflectiveMat.uniforms.uFresnelGlow.value=P.material.reflection.fresnelGlow;
-    reflectiveMat.uniforms.uOpacity.value=P.material.reflection.opacity;
-    reflectiveMat.uniforms.uPixelGrid.value.set(...P.material.reflection.pixelGrid);
+    bandMaterial.uniforms.uOpacity.value=P.material.band.opacity;
+    bandMaterial.uniforms.uBrightness.value=P.material.band.brightness;
+    bandMaterial.uniforms.uEdgeGlow.value=P.material.band.edgeGlow;
+    bandMaterial.uniforms.uFresnelGlow.value=P.material.band.fresnelGlow;
+    bandMaterial.uniforms.uWhiteSpecular.value=P.material.band.whiteSpecular;
+    bandMaterial.uniforms.uSpeed.value=P.material.band.speed;
 
-    moireMat.uniforms.uBlack.value=P.material.moire.black;
-    moireMat.uniforms.uWhite.value=P.material.moire.white;
-    moireMat.uniforms.uOpacity.value=P.material.moire.opacity;
-    moireMat.uniforms.uFreqA.value=P.material.moire.frequencyA;
-    moireMat.uniforms.uFreqB.value=P.material.moire.frequencyB;
-    moireMat.uniforms.uRadialFreq.value=P.material.moire.radialFrequency;
-    moireMat.uniforms.uZebraMix.value=P.material.moire.zebraMix;
-    moireMat.uniforms.uEdgeGlow.value=P.material.moire.edgeGlow;
+    bandWireMaterial.uniforms.uGlow.value=P.material.wire.glow;
+    bandWireMaterial.uniforms.uOpacity.value=Math.min(1,P.material.wire.opacity+.18);
+    bandWireMaterial.uniforms.uSpeed.value=P.material.wire.speed;
 
-    iridescentMat.uniforms.uBrightness.value=P.material.iridescent.brightness;
-    iridescentMat.uniforms.uOpacity.value=P.material.iridescent.opacity;
-    iridescentMat.uniforms.uEdgeGlow.value=P.material.iridescent.edgeGlow;
-    iridescentMat.uniforms.uFresnelGlow.value=P.material.iridescent.fresnelGlow;
-    iridescentMat.uniforms.uSpeed.value=P.material.iridescent.speed;
+    wireAura.mat.uniforms.uGlow.value=P.material.wire.glow;
+    wireAura.mat.uniforms.uOpacity.value=P.material.wire.opacity;
+    wireAura.mat.uniforms.uSpeed.value=P.material.wire.speed;
 
-    outerWireMat.color.set(P.composition.outerWire.color);
-    outerWireMat.emissive.set(P.composition.outerWire.emissiveColor);
-    outerWireMat.emissiveIntensity=P.composition.outerWire.emissiveIntensity;
-    outerWireMat.metalness=P.composition.outerWire.metalness;
-    outerWireMat.roughness=P.composition.outerWire.roughness;
-    outerWireMat.clearcoat=P.composition.outerWire.clearcoat;
-    outerWireMat.clearcoatRoughness=P.composition.outerWire.clearcoatRoughness;
-    outerWireMat.needsUpdate=true;
+    wireAura.networkMat.uniforms.uGlow.value=P.material.wire.glow*.72;
+    wireAura.networkMat.uniforms.uOpacity.value=P.composition.wireAura.networkOpacity;
+    wireAura.networkMat.uniforms.uSpeed.value=P.material.wire.speed;
+
+    wireAura.pointMat.uniforms.uOpacity.value=P.material.points.opacity;
+    wireAura.pointMat.uniforms.uSize.value=P.material.points.size;
+    wireAura.pointMat.uniforms.uPixelRatio.value=Math.min(devicePixelRatio,2);
+
+    typography.group.children.forEach(mesh=>{
+      if(mesh.material)mesh.material.opacity=P.composition.typography.opacity;
+    });
   }
 
   function resize(){
@@ -652,19 +801,22 @@ export async function createVisualScene(stage,cases,videoTexture){
     const ratio=Math.min(devicePixelRatio,2);
     renderer.setPixelRatio(ratio);
     renderer.setSize(innerWidth,innerHeight);
+
     composer.setPixelRatio(ratio);
     composer.setSize(innerWidth,innerHeight);
+    wireAura.pointMat.uniforms.uPixelRatio.value=ratio;
   }
+
+  setCase(0);
 
   return {
     scene,camera,renderer,composer,bloomPass,ditherPass,root,
-
-    heroGroup,heroTriangle,reflectiveMat,
-    moireGroup,moireTriangles,moireMat,
-    auraGroup,auraMesh,auraSeeds,iridescentMat,
-    outerWireGroup,outerWire,outerWireMat,
-
-    key,colorLightA,colorLightB,
+    bandMesh,bandMaterial,bandWire,bandWireMaterial,
+    wireAura,
+    typography,
+    key,lightA,lightB,
+    setCase,
+    get activeCaseIndex(){return activeCaseIndex;},
     applyParams,
     resize
   };
@@ -688,232 +840,197 @@ export function updateVisualScene(
 
   const {
     root,
-    heroTriangle,reflectiveMat,
-    moireGroup,moireTriangles,moireMat,
-    auraGroup,auraMesh,auraSeeds,iridescentMat,
-    outerWireGroup,outerWire,
-    bloomPass,ditherPass,key,colorLightA,colorLightB
+    bandMesh,bandMaterial,bandWireMaterial,
+    wireAura,typography,
+    bloomPass,ditherPass,
+    key,lightA,lightB
   }=visual;
+
+  if(activeCase!==visual.activeCaseIndex){
+    visual.setCase(activeCase);
+  }
 
   const R=P.reaction;
 
   root.rotation.x=THREE.MathUtils.lerp(
     root.rotation.x,
-    pointer.y*R.root.pointerY-humanY*R.root.cameraY+state.tiltBias*.018,
-    .025
+    P.composition.band.rotationX+
+      pointer.y*R.root.pointerY-
+      humanY*R.root.cameraY+
+      state.tiltBias*.018,
+    .02
   );
 
   root.rotation.y=THREE.MathUtils.lerp(
     root.rotation.y,
-    pointer.x*R.root.pointerX+humanX*R.root.cameraX+state.rotationBias*.013,
-    .025
+    P.composition.band.rotationY+
+      pointer.x*R.root.pointerX+
+      humanX*R.root.cameraX+
+      state.rotationBias*.012,
+    .02
   );
 
   root.rotation.z=THREE.MathUtils.lerp(
     root.rotation.z,
-    humanVX*R.root.velocityRoll,
-    .015
+    P.composition.band.rotationZ+
+      state.orbitBias*.22+
+      humanVX*R.root.velocityRoll,
+    .016
   );
 
-  reflectiveMat.uniforms.uTime.value=time;
-  reflectiveMat.uniforms.uMotion.value=motion;
-  reflectiveMat.uniforms.uGlitch.value=state.glitch+motion*.10;
-  reflectiveMat.uniforms.uA.value.copy(state.palette[0]);
-  reflectiveMat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
-  reflectiveMat.uniforms.uC.value.copy(
+  root.position.x=THREE.MathUtils.lerp(
+    root.position.x,
+    humanX*R.band.xPush,
+    R.band.response
+  );
+  root.position.y=THREE.MathUtils.lerp(
+    root.position.y,
+    humanY*R.band.yPush,
+    R.band.response
+  );
+  root.position.z=THREE.MathUtils.lerp(
+    root.position.z,
+    motion*R.band.zPush,
+    R.band.response
+  );
+
+  const bandScale=
+    state.bandScale*
+    (1+motion*R.band.scalePulse);
+  const bs=THREE.MathUtils.lerp(root.scale.x,bandScale,R.band.response);
+  root.scale.setScalar(bs);
+
+  bandMaterial.uniforms.uTime.value=time;
+  bandMaterial.uniforms.uMotion.value=motion;
+  bandMaterial.uniforms.uHuman.value.set(humanX,humanY);
+  bandMaterial.uniforms.uA.value.copy(state.palette[0]);
+  bandMaterial.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
+  bandMaterial.uniforms.uC.value.copy(
+    state.palette[2]||state.palette[1]||state.palette[0]
+  );
+  bandMaterial.uniforms.uDepth.value=state.bandDepth;
+  bandMaterial.uniforms.uCaseTwist.value=
+    state.bandTwist+
+    humanVX*R.band.velocityTilt*.15-
+    humanVY*R.band.velocityTilt*.12;
+  bandMaterial.uniforms.uIridescence.value=state.iridescenceBias;
+
+  bandWireMaterial.uniforms.uTime.value=time;
+  bandWireMaterial.uniforms.uMotion.value=motion;
+  bandWireMaterial.uniforms.uA.value.copy(state.palette[0]);
+  bandWireMaterial.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
+  bandWireMaterial.uniforms.uC.value.copy(
     state.palette[2]||state.palette[1]||state.palette[0]
   );
 
-  heroTriangle.position.x=THREE.MathUtils.lerp(
-    heroTriangle.position.x,
-    humanX*R.hero.xPush,
-    .032
-  );
-  heroTriangle.position.y=THREE.MathUtils.lerp(
-    heroTriangle.position.y,
-    humanY*R.hero.yPush,
-    .032
-  );
-  heroTriangle.position.z=THREE.MathUtils.lerp(
-    heroTriangle.position.z,
-    P.composition.hero.z+motion*R.hero.zPush,
-    .03
-  );
+  wireAura.mat.uniforms.uTime.value=time;
+  wireAura.mat.uniforms.uMotion.value=motion;
+  wireAura.networkMat.uniforms.uTime.value=time;
+  wireAura.networkMat.uniforms.uMotion.value=motion*.5;
 
-  heroTriangle.rotation.x=THREE.MathUtils.lerp(
-    heroTriangle.rotation.x,
-    P.composition.hero.tiltX-humanVY*R.hero.velocityTilt+pointer.y*.04,
-    .028
-  );
-  heroTriangle.rotation.y=THREE.MathUtils.lerp(
-    heroTriangle.rotation.y,
-    P.composition.hero.tiltY+humanVX*R.hero.velocityTilt+pointer.x*.05,
-    .028
-  );
-
-  const heroScale=
-    P.composition.hero.size*
-    state.heroScale*
-    (1+motion*R.hero.scalePulse);
-  const heroS=THREE.MathUtils.lerp(heroTriangle.scale.x,heroScale,.025);
-  heroTriangle.scale.setScalar(heroS);
-
-  moireMat.uniforms.uTime.value=time;
-  moireMat.uniforms.uMotion.value=motion;
-  moireMat.uniforms.uMoire.value=state.moire;
-  moireMat.uniforms.uZebra.value=state.zebra;
-  moireMat.uniforms.uA.value.copy(state.palette[0]);
-  moireMat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
-  moireMat.uniforms.uC.value.copy(
-    state.palette[2]||state.palette[1]||state.palette[0]
-  );
-
-  moireGroup.rotation.z=THREE.MathUtils.lerp(
-    moireGroup.rotation.z,
-    state.orbitBias*.24+time*.005,
-    .012
-  );
-
-  moireTriangles.forEach(tri=>{
-    const base=tri.userData.basePosition;
-    const baseRot=tri.userData.baseRotation;
-
-    tri.position.x=THREE.MathUtils.lerp(
-      tri.position.x,
-      base.x+humanX*R.moire.xPush,
-      R.moire.lag
+  for(const mat of [wireAura.mat,wireAura.networkMat]){
+    mat.uniforms.uA.value.copy(state.palette[0]);
+    mat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
+    mat.uniforms.uC.value.copy(
+      state.palette[2]||state.palette[1]||state.palette[0]
     );
-    tri.position.y=THREE.MathUtils.lerp(
-      tri.position.y,
-      base.y+humanY*R.moire.yPush,
-      R.moire.lag
-    );
-    tri.position.z=THREE.MathUtils.lerp(
-      tri.position.z,
-      base.z+motion*R.moire.zPush+Math.sin(time*.19+tri.userData.phase)*.035,
-      R.moire.lag
-    );
+  }
 
-    tri.rotation.x=THREE.MathUtils.lerp(
-      tri.rotation.x,
-      baseRot.x-humanVY*R.moire.velocityTilt,
-      R.moire.lag
-    );
-    tri.rotation.y=THREE.MathUtils.lerp(
-      tri.rotation.y,
-      baseRot.y+humanVX*R.moire.velocityTilt,
-      R.moire.lag
-    );
-    tri.rotation.z=baseRot.z+Math.sin(time*.11+tri.userData.phase)*.03;
-
-    const targetScale=
-      tri.userData.baseScale*
-      state.moireScale*
-      (1+motion*R.moire.scalePulse);
-    const s=THREE.MathUtils.lerp(tri.scale.x,targetScale,R.moire.lag);
-    tri.scale.setScalar(s);
-  });
-
-  iridescentMat.uniforms.uTime.value=time;
-  iridescentMat.uniforms.uMotion.value=motion;
-  iridescentMat.uniforms.uA.value.copy(state.palette[0]);
-  iridescentMat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
-  iridescentMat.uniforms.uC.value.copy(
-    state.palette[2]||state.palette[1]||state.palette[0]
+  wireAura.pointMat.uniforms.uA.value.copy(
+    state.palette[0]||new THREE.Color("#ffffff")
   );
-  iridescentMat.uniforms.uCaseIridescence.value=state.iridescenceBias;
-
-  auraGroup.rotation.z=THREE.MathUtils.lerp(
-    auraGroup.rotation.z,
-    state.orbitBias*.14-time*.0035,
-    .009
-  );
-  auraGroup.rotation.y=THREE.MathUtils.lerp(
-    auraGroup.rotation.y,
-    humanX*.038+state.rotationBias*.006,
-    .01
-  );
-
-  const temp=new THREE.Object3D();
-
-  auraSeeds.forEach((seed,i)=>{
-    const depthFactor=.65+seed.depth*.65;
-
-    temp.position.copy(seed.position);
-    temp.position.x+=humanX*R.aura.xPush*depthFactor;
-    temp.position.y+=humanY*R.aura.yPush*depthFactor;
-    temp.position.z+=
-      motion*R.aura.zPush*depthFactor+
-      Math.sin(time*.16+seed.phase)*.032;
-
-    temp.rotation.copy(seed.rotation);
-    temp.rotation.x+=-humanVY*R.aura.velocityTilt*depthFactor;
-    temp.rotation.y+=humanVX*R.aura.velocityTilt*depthFactor;
-    temp.rotation.z+=Math.sin(time*.10+seed.phase)*.035;
-
-    const scale=
-      seed.scale*
-      state.auraScale*
-      (1+motion*R.aura.scalePulse*depthFactor);
-
-    temp.scale.setScalar(scale);
-    temp.updateMatrix();
-    auraMesh.setMatrixAt(i,temp.matrix);
-  });
-
-  auraMesh.instanceMatrix.needsUpdate=true;
-
-  outerWire.position.x=THREE.MathUtils.lerp(
-    outerWire.position.x,
-    humanX*R.outerWire.xPush,
-    R.outerWire.lag
-  );
-  outerWire.position.y=THREE.MathUtils.lerp(
-    outerWire.position.y,
-    humanY*R.outerWire.yPush,
-    R.outerWire.lag
-  );
-  outerWire.position.z=P.composition.outerWire.z;
-
-  outerWire.rotation.x=THREE.MathUtils.lerp(
-    outerWire.rotation.x,
-    P.composition.outerWire.tiltX-humanVY*R.outerWire.velocityTilt,
-    R.outerWire.lag
-  );
-  outerWire.rotation.y=THREE.MathUtils.lerp(
-    outerWire.rotation.y,
-    P.composition.outerWire.tiltY+humanVX*R.outerWire.velocityTilt,
-    R.outerWire.lag
-  );
-  outerWire.rotation.z=THREE.MathUtils.lerp(
-    outerWire.rotation.z,
-    P.composition.outerWire.tiltZ+state.orbitBias*.10,
-    R.outerWire.lag
+  wireAura.pointMat.uniforms.uB.value.copy(
+    state.palette[1]||state.palette[0]
   );
 
   const wireScale=
     state.wireScale*
-    (1+motion*R.outerWire.scalePulse);
-  const wireS=THREE.MathUtils.lerp(
-    outerWireGroup.scale.x,
-    wireScale,
-    R.outerWire.lag
-  );
-  outerWireGroup.scale.setScalar(wireS);
+    (1+motion*R.wireAura.scalePulse);
 
-  colorLightA.color.copy(state.palette[0]);
-  colorLightB.color.copy(state.palette[1]||state.palette[0]);
-  colorLightA.intensity=5.5+state.intensity*2.3+motion*1.3;
-  colorLightB.intensity=4.6+state.complexity*1.9+motion*1.0;
+  wireAura.group.scale.setScalar(
+    THREE.MathUtils.lerp(
+      wireAura.group.scale.x,
+      wireScale,
+      R.wireAura.response
+    )
+  );
+
+  wireAura.group.rotation.y=THREE.MathUtils.lerp(
+    wireAura.group.rotation.y,
+    humanX*.06+state.orbitBias*.20,
+    R.wireAura.response
+  );
+  wireAura.group.rotation.x=THREE.MathUtils.lerp(
+    wireAura.group.rotation.x,
+    -humanY*.05+state.tiltBias*.025,
+    R.wireAura.response
+  );
+
+  wireAura.frames.forEach((frame,i)=>{
+    const base=frame.userData.basePosition;
+    const rot=frame.userData.baseRotation;
+    const depth=.65+Math.abs(base.z)*.10;
+
+    frame.position.x=THREE.MathUtils.lerp(
+      frame.position.x,
+      base.x+humanX*R.wireAura.xPush*depth,
+      R.wireAura.response
+    );
+    frame.position.y=THREE.MathUtils.lerp(
+      frame.position.y,
+      base.y+humanY*R.wireAura.yPush*depth,
+      R.wireAura.response
+    );
+    frame.position.z=THREE.MathUtils.lerp(
+      frame.position.z,
+      base.z+
+        motion*R.wireAura.zPush*depth+
+        Math.sin(time*.13+frame.userData.phase)*.045,
+      R.wireAura.response
+    );
+
+    frame.rotation.x=
+      rot.x-humanVY*R.wireAura.velocityTilt*.18+
+      Math.sin(time*.07+frame.userData.phase)*.025;
+    frame.rotation.y=
+      rot.y+humanVX*R.wireAura.velocityTilt*.18;
+    frame.rotation.z=
+      rot.z+Math.sin(time*.10+frame.userData.phase)*.045;
+  });
+
+  const typeR=R.typography;
+  typography.group.position.x=THREE.MathUtils.lerp(
+    typography.group.position.x,
+    pointer.x*typeR.pointerX+humanX*typeR.cameraX,
+    typeR.response
+  );
+  typography.group.position.y=THREE.MathUtils.lerp(
+    typography.group.position.y,
+    pointer.y*typeR.pointerY+humanY*typeR.cameraY,
+    typeR.response
+  );
+
+  const ts=THREE.MathUtils.lerp(
+    typography.group.scale.x,
+    state.typeScale*P.composition.typography.scale,
+    .014
+  );
+  typography.group.scale.setScalar(ts);
+
+  lightA.color.copy(state.palette[0]);
+  lightB.color.copy(state.palette[1]||state.palette[0]);
+
+  lightA.intensity=6.1+state.intensity*3+motion*1.8;
+  lightB.intensity=5.6+state.complexity*2.5+motion*1.5;
 
   key.position.x=THREE.MathUtils.lerp(
     key.position.x,
-    3.4+humanX*.7,
+    3.8+humanX*.9,
     .018
   );
   key.position.y=THREE.MathUtils.lerp(
     key.position.y,
-    4.3+humanY*.6,
+    4.8+humanY*.7,
     .018
   );
 
@@ -923,9 +1040,8 @@ export function updateVisualScene(
     P.bloom.strength+
     state.bloomBias+
     motion*P.bloom.motionBoost+
-    state.intensity*.035;
+    state.intensity*.04;
 
-  ditherPass.uniforms.uTime.value=time;
   ditherPass.uniforms.uStrength.value=P.postfx.dither.strength;
   ditherPass.uniforms.uScale.value=P.postfx.dither.scale;
   ditherPass.uniforms.uLevels.value=P.postfx.dither.levels;
