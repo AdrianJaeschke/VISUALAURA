@@ -115,7 +115,10 @@ export const VISUAL_PARAMS={
       pearlStrength:1.5,
       filmThickness:3,
       whiteness:1,
-      spectralSaturation:1.5
+      spectralSaturation:1.5,
+      focusWidth:.16,
+      focusColorBoost:.62,
+      focusReflection:.72
     },
 
     wire:{
