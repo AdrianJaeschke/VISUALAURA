@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-30T15:11:02",
+  "generated": "2026-09-30T15:54:06",
   "cases": [
     {
       "id": "case1",
@@ -30,14 +30,14 @@
       "complexity": 0.696,
       "featured": false,
       "visual": {
-        "heroScale": 1.0413,
-        "moireScale": 0.9153,
-        "auraScale": 0.9553,
-        "wireScale": 0.9454,
-        "bloomBias": 0.0157,
-        "orbitBias": -0.1045,
-        "iridescenceBias": 1.0816,
-        "moireBias": -0.0071
+        "bandScale": 1.0593,
+        "bandDepth": 0.9014,
+        "bandTwist": -0.1186,
+        "wireScale": 0.9092,
+        "typeScale": 0.9964,
+        "bloomBias": -0.0222,
+        "orbitBias": 0.0582,
+        "iridescenceBias": 0.9971
       },
       "presentation": {
         "images": [
@@ -104,14 +104,14 @@
       "complexity": 0.668,
       "featured": false,
       "visual": {
-        "heroScale": 1.0043,
-        "moireScale": 1.0986,
-        "auraScale": 1.093,
-        "wireScale": 0.9486,
-        "bloomBias": 0.0715,
-        "orbitBias": -0.0137,
-        "iridescenceBias": 0.949,
-        "moireBias": -0.0034
+        "bandScale": 1.0084,
+        "bandDepth": 1.1581,
+        "bandTwist": 0.1338,
+        "wireScale": 0.9148,
+        "typeScale": 1.0441,
+        "bloomBias": 0.0231,
+        "orbitBias": -0.0781,
+        "iridescenceBias": 1.0016
       },
       "presentation": {
         "images": [
@@ -174,14 +174,14 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "heroScale": 1.0478,
-        "moireScale": 0.9073,
-        "auraScale": 1.0493,
-        "wireScale": 0.9828,
-        "bloomBias": 0.0324,
-        "orbitBias": 0.0509,
-        "iridescenceBias": 1.097,
-        "moireBias": -0.0737
+        "bandScale": 1.0682,
+        "bandDepth": 0.8902,
+        "bandTwist": 0.0537,
+        "wireScale": 0.9733,
+        "typeScale": 1.0106,
+        "bloomBias": 0.0555,
+        "orbitBias": 0.0741,
+        "iridescenceBias": 0.9162
       },
       "presentation": {
         "images": [
@@ -232,14 +232,14 @@
       "complexity": 0.668,
       "featured": false,
       "visual": {
-        "heroScale": 1.0062,
-        "moireScale": 0.9631,
-        "auraScale": 0.9245,
-        "wireScale": 1.0452,
-        "bloomBias": 0.0616,
-        "orbitBias": -0.0804,
-        "iridescenceBias": 1.046,
-        "moireBias": 0.0281
+        "bandScale": 1.0111,
+        "bandDepth": 0.9683,
+        "bandTwist": -0.1751,
+        "wireScale": 1.0803,
+        "typeScale": 1.0357,
+        "bloomBias": -0.0102,
+        "orbitBias": 0.0216,
+        "iridescenceBias": 1.0398
       },
       "presentation": {
         "images": [
@@ -302,14 +302,14 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "heroScale": 1.0787,
-        "moireScale": 1.025,
-        "auraScale": 1.1002,
-        "wireScale": 0.9722,
-        "bloomBias": -0.0038,
-        "orbitBias": 0.1144,
-        "iridescenceBias": 1.0689,
-        "moireBias": 0.018
+        "bandScale": 1.1107,
+        "bandDepth": 1.055,
+        "bandTwist": 0.147,
+        "wireScale": 0.9552,
+        "typeScale": 0.9796,
+        "bloomBias": 0.0872,
+        "orbitBias": 0.0452,
+        "iridescenceBias": 1.0276
       },
       "presentation": {
         "images": [
@@ -360,14 +360,14 @@
       "complexity": 0.612,
       "featured": false,
       "visual": {
-        "heroScale": 0.9959,
-        "moireScale": 1.092,
-        "auraScale": 1.0614,
-        "wireScale": 1.0566,
-        "bloomBias": 0.0277,
-        "orbitBias": -0.1406,
-        "iridescenceBias": 0.9722,
-        "moireBias": 0.0937
+        "bandScale": 0.9968,
+        "bandDepth": 1.1488,
+        "bandTwist": 0.0759,
+        "wireScale": 1.0999,
+        "typeScale": 1.0066,
+        "bloomBias": -0.0403,
+        "orbitBias": -0.0543,
+        "iridescenceBias": 1.1195
       },
       "presentation": {
         "images": [
@@ -422,14 +422,14 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "heroScale": 1.0391,
-        "moireScale": 1.0026,
-        "auraScale": 1.0145,
-        "wireScale": 0.9656,
-        "bloomBias": 0.0691,
-        "orbitBias": 0.1496,
-        "iridescenceBias": 0.9842,
-        "moireBias": -0.085
+        "bandScale": 1.0563,
+        "bandDepth": 1.0237,
+        "bandTwist": -0.0101,
+        "wireScale": 0.9439,
+        "typeScale": 1.0421,
+        "bloomBias": 0.1048,
+        "orbitBias": -0.042,
+        "iridescenceBias": 0.9026
       },
       "presentation": {
         "images": [
