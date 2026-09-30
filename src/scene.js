@@ -156,10 +156,10 @@ export function createVisualScene(stage,cases,videoTexture){
         uv.x+=(hash(vec2(band,9.+floor(uTime*9.)))-.5)*.085*glitch;
         uv=clamp(uv,0.,1.);
 
-        vec2 pixel=floor(uv*vec2(68.,44.))/vec2(68.,44.);
+        vec2 pixel=floor(uv*vec2(${P.material.reflection.pixelGrid[0].toFixed(1)},${P.material.reflection.pixelGrid[1].toFixed(1)}))/vec2(${P.material.reflection.pixelGrid[0].toFixed(1)},${P.material.reflection.pixelGrid[1].toFixed(1)});
         vec3 cam=texture2D(uVideo,pixel).rgb;
         float l=dot(cam,vec3(.299,.587,.114));
-        cam=mix(vec3(l),cam,.72);
+        cam=mix(vec3(l),cam,${P.material.reflection.saturation.toFixed(3)});
 
         vec3 N=normalize(vNormalW);
         vec3 V=normalize(cameraPosition-vWorld);
@@ -171,10 +171,10 @@ export function createVisualScene(stage,cases,videoTexture){
 
         float e=edgeFactor();
 
-        vec3 chrome=pow(cam,vec3(.78))*1.16;
-        chrome+=vec3(.08)+fres*.08;
+        vec3 chrome=pow(cam,vec3(.78))*${P.material.reflection.brightness.toFixed(3)};
+        chrome+=vec3(${P.material.reflection.baseLift.toFixed(3)})+fres*.08;
         vec3 col=chrome*(.5+fres*.34);
-        col+=iri*(e*2.15+fres*.46);
+        col+=iri*(e*${P.material.reflection.edgeGlow.toFixed(3)}+fres*${P.material.reflection.fresnelGlow.toFixed(3)});
         col+=vec3(1.)*e*.26;
         col+=iri*uMotion*.22;
 
@@ -238,12 +238,12 @@ export function createVisualScene(stage,cases,videoTexture){
         iri=mix(iri,uC,.3+fres*.5);
 
         float edge=edgeFactor();
-        vec3 baseBW=mix(vec3(.015),vec3(.96),bw);
+        vec3 baseBW=mix(vec3(${P.material.moire.black.toFixed(3)}),vec3(${P.material.moire.white.toFixed(3)}),bw);
         vec3 col=baseBW*.44;
         col+=iri*(edge*1.72+fres*.19);
         float pulse=step(.975,sin(vWorld.y*19.+uTime*17.))*uGlitch;
         col+=iri*pulse*.32;
-        gl_FragColor=vec4(col,.86);
+        gl_FragColor=vec4(col,${P.material.moire.baseOpacity.toFixed(3)});
       }`
   });
 
@@ -601,7 +601,10 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
 
     const proximity=Math.max(
       0,
-      1-Math.hypot(base.x-humanCX*largeRadius,base.y-humanCY*P.geometry.large.ySpread)/
+      1-Math.hypot(
+        base.x-humanCX*(P.reference.aura.radialMax*P.geometry.large.radiusScale),
+        base.y-humanCY*P.geometry.large.ySpread
+      )/
         P.reaction.large.influenceRadius
     );
     const humanPush=motion*proximity;
@@ -628,8 +631,8 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
   const temp=new THREE.Object3D();
   smallSeeds.forEach((s,i)=>{
     temp.position.copy(s.position);
-    const sx=s.position.x-humanCX*4.1;
-    const sy=s.position.y-humanCY*3.0;
+    const sx=s.position.x-humanCX*(P.reference.shards.radialMax*.58);
+    const sy=s.position.y-humanCY*(P.geometry.small.ySpread*.52);
     const near=Math.max(0,1-Math.hypot(sx,sy)/P.reaction.small.influenceRadius);
     temp.position.x+=humanX*near*P.reaction.small.xPush;
     temp.position.y+=humanY*near*P.reaction.small.yPush;
@@ -649,8 +652,8 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
 
   tetraMeshes.forEach((tetra,i)=>{
     const base=tetra.userData.basePos;
-    const dx=base.x-humanCX*4.5;
-    const dy=base.y-humanCY*3.2;
+    const dx=base.x-humanCX*(P.reference.struts.radialMax*.57);
+    const dy=base.y-humanCY*(P.geometry.tetra.ySpread*.58);
     const near=Math.max(0,1-Math.hypot(dx,dy)/P.reaction.tetra.influenceRadius);
     tetra.position.x=base.x+humanX*near*P.reaction.tetra.xPush;
     tetra.position.y=base.y+humanY*near*P.reaction.tetra.yPush;
