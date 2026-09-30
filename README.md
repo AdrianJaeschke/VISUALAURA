@@ -387,3 +387,30 @@ postfx.dither
 ```
 
 Die PARAMS-Konsole wurde vollständig auf dieses Ribbon-System umgestellt.
+
+
+## Case Viewpoints / 360 Camera Rail
+
+Jeder Case besitzt jetzt einen eigenen Viewpoint entlang der geschlossenen Band-Mittellinie.
+
+- die Case-Positionen werden gleichmäßig auf der prozeduralen Ribbon-Curve verteilt
+- beim Case-Wechsel fliegt die Kamera weich zum nächsten Bandabschnitt
+- der Blick bleibt auf dem jeweiligen lokalen Case-Anchor
+- Maus / Touch / Gyro erlauben zusätzlich einen vollständigen 360°-Orbit um diesen Viewpoint
+- die Kamera berücksichtigt Band-Scale, Band-Depth, Case-Twist und die aktuelle Root-Transformation
+- Case-Bilder, Video, Titel und Beschreibung werden direkt am jeweiligen Band-Anchor angezeigt
+- das Media-Cluster richtet sich zur Kamera aus und bleibt deshalb von allen Seiten lesbar
+- die räumliche System-Typografie billboarded ebenfalls zur Kamera
+
+Bloom wurde bewusst deutlich reduziert:
+
+```js
+bloom: {
+  strength: .58,
+  radius: .42,
+  threshold: .82,
+  motionBoost: .10
+}
+```
+
+Die Rail kann live in der PARAMS-Konsole unter **Camera Rail** eingestellt werden.
