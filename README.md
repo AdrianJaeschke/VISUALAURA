@@ -57,6 +57,38 @@ src/
 - `src/scene.js` — Three.js-Szene, Shader, Triangle-Felder, Halos und Headline-Struktur
 - `src/visual-config.js` — zentrale Parameter für Geometrie, Kamera-Delay, Reaktionsstärke und Materialien
 
+## Parametrischer Aufbau aus `visual_aura.obj`
+
+Die Laufzeit rendert die OBJ-Datei nicht direkt. Stattdessen wurde aus der gelieferten `visual_aura.obj` ein leichtes Anchor-Template erzeugt: `assets/visual-aura-template.json`.
+
+Die vier relevanten OBJ-Gruppen werden unterschiedlich interpretiert:
+
+- `Cube.001` → zentrale kleine Triangle-Struktur
+- `FX_shards` → große reflektierende Dreiecke und 3D-Fragmente
+- `FX_floor_facets` → Halo-/Echo-Ebenen in der Tiefe
+- `FX_struts` → feine Linienstruktur und zusätzliche räumliche Anker
+
+Die Parameter liegen zentral in `src/params.js`. Dort lassen sich Anzahl, Größen, Tiefenstaffelung, Reaktionsstärke, Kamera-Delay und Glättung verändern, ohne die Scene-Logik umzubauen.
+
+Das Template lässt sich aus einer neuen OBJ-Version reproduzierbar neu erzeugen:
+
+```bash
+python3 tools/build-template.py visual_aura.obj assets/visual-aura-template.json
+```
+
+## Kamera-Reaktion
+
+Die Bewegungserkennung arbeitet jetzt mit einem verzögerten, geglätteten Signal statt mit direktem Frame-to-Frame-Jitter.
+
+Aktuelle Default-Werte:
+
+- ca. **260 ms Delay**
+- ca. **520 ms Positions-/Motion-Glättung**
+- ca. **720 ms Velocity-Glättung**
+- Bewegungszentrum, Richtung und Bewegungsenergie werden getrennt verarbeitet
+
+Dadurch folgt die Installation einer Person deutlich träger und fließender. Große Dreiecke, kleine Triangles, Tetraeder, Halo-Layer und Licht reagieren mit unterschiedlichen parametrischen Gains.
+
 ## CMS/API-Datenmodell
 
 Erwartet wird pro Case ungefähr:
