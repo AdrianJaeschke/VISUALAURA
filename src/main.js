@@ -15,7 +15,7 @@ const CASES=await loadCases();
 const cameraInput=createCameraInput(video,isMobile);
 const interpret=createInterpreter(CASES);
 const visual=await createVisualScene(el("stage"),CASES,cameraInput.texture);
-const presentation=createCasePresentation(visual.scene,visual.camera,visual);
+const presentation=createCasePresentation();
 createControlConsole({visual,onStructuralChange:()=>location.reload()});
 
 let activeCase=0,state=interpret(CASES[0]),targetState=state,wheelLock=false;
@@ -74,9 +74,10 @@ addEventListener("pointerdown",e=>{
   if(e.target.closest?.(".case-meta,.case-dots,button"))return;
   if(isMobile&&intro.classList.contains("hidden")&&!presentation.isOpen())setCase(activeCase+1);
 },{passive:true});
-addEventListener("wheel",e=>{if(wheelLock||!intro.classList.contains("hidden"))return;wheelLock=true;setCase(activeCase+(e.deltaY>0?1:-1));setTimeout(()=>wheelLock=false,420)},{passive:true});
+addEventListener("wheel",e=>{if(wheelLock||!intro.classList.contains("hidden")||presentation.isOpen())return;wheelLock=true;setCase(activeCase+(e.deltaY>0?1:-1));setTimeout(()=>wheelLock=false,420)},{passive:true});
 addEventListener("keydown",e=>{
   if(e.key==="Escape"){presentation.close();return;}
+  if(presentation.isOpen())return;
   if(["ArrowRight","ArrowDown"].includes(e.key))setCase(activeCase+1);
   if(["ArrowLeft","ArrowUp"].includes(e.key))setCase(activeCase-1);
 });
