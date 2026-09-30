@@ -582,6 +582,42 @@ export async function createVisualScene(stage,cases,videoTexture){
 
   scene.add(key,cyan,magenta);
 
+  function applyParams(){
+    bloomPass.strength=P.bloom.strength;
+    bloomPass.radius=P.bloom.radius;
+    bloomPass.threshold=P.bloom.threshold;
+
+    scaffoldMat.uniforms.uOpacity.value=P.layers.scaffold.opacity;
+    scaffoldMat.uniforms.uGlow.value=P.material.scaffold.glow;
+    scaffoldMat.uniforms.uWhiteCore.value=P.material.scaffold.whiteCore;
+
+    reflectiveMat.uniforms.uSaturation.value=P.material.reflection.saturation;
+    reflectiveMat.uniforms.uBrightness.value=P.material.reflection.brightness;
+    reflectiveMat.uniforms.uBaseLift.value=P.material.reflection.baseLift;
+    reflectiveMat.uniforms.uEdgeGlow.value=P.material.reflection.edgeGlow;
+    reflectiveMat.uniforms.uFresnelGlow.value=P.material.reflection.fresnelGlow;
+    reflectiveMat.uniforms.uOpacity.value=P.material.reflection.opacity;
+    reflectiveMat.uniforms.uPixelGrid.value.set(...P.material.reflection.pixelGrid);
+
+    moireMat.uniforms.uBlack.value=P.material.moire.black;
+    moireMat.uniforms.uWhite.value=P.material.moire.white;
+    moireMat.uniforms.uOpacity.value=P.material.moire.opacity;
+    moireMat.uniforms.uFreqA.value=P.material.moire.frequencyA;
+    moireMat.uniforms.uFreqB.value=P.material.moire.frequencyB;
+    moireMat.uniforms.uRadialFreq.value=P.material.moire.radialFrequency;
+    moireMat.uniforms.uZebraMix.value=P.material.moire.zebraMix;
+    moireMat.uniforms.uEdgeGlow.value=P.material.moire.edgeGlow;
+
+    giantMat.color.set(P.layers.giantWire.darkColor);
+    giantMat.emissive.set(P.layers.giantWire.emissiveColor);
+    giantMat.emissiveIntensity=P.layers.giantWire.emissiveIntensity;
+    giantMat.metalness=P.layers.giantWire.metalness;
+    giantMat.roughness=P.layers.giantWire.roughness;
+    giantMat.clearcoat=P.layers.giantWire.clearcoat;
+    giantMat.clearcoatRoughness=P.layers.giantWire.clearcoatRoughness;
+    giantMat.needsUpdate=true;
+  }
+
   function resize(){
     camera.aspect=innerWidth/innerHeight;
     camera.updateProjectionMatrix();
@@ -599,8 +635,9 @@ export async function createVisualScene(stage,cases,videoTexture){
     scaffoldGroup,scaffoldMat,
     shellGroup,reflectiveMat,reflectiveTriangles,
     moireMat,moireMesh,moireSeeds,
-    giantWireGroup,giantPolygons,
+    giantWireGroup,giantPolygons,giantMat,
     key,cyan,magenta,
+    applyParams,
     resize
   };
 }
