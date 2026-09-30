@@ -67,11 +67,13 @@ export function createInterpreter(cases){
       complexity,
       palette:paletteFor(entry),
 
-      scaffoldScale:Number(visual.scaffoldScale)||(.92+hash01(seed,10)*.2),
-      shellScale:Number(visual.shellScale)||(.92+hash01(seed,11)*.18),
-      giantScale:Number(visual.giantScale)||(.92+hash01(seed,12)*.22),
-      bloomBias:Number(visual.bloomBias)||(-.05+hash01(seed,13)*.14),
-      orbitBias:Number(visual.orbitBias)||(-.14+hash01(seed,14)*.28)
+      heroScale:Number(visual.heroScale)||(.94+hash01(seed,10)*.16),
+      moireScale:Number(visual.moireScale)||(.90+hash01(seed,11)*.20),
+      auraScale:Number(visual.auraScale)||(.90+hash01(seed,12)*.24),
+      wireScale:Number(visual.wireScale)||(.94+hash01(seed,13)*.14),
+      bloomBias:Number(visual.bloomBias)||(-.05+hash01(seed,14)*.14),
+      orbitBias:Number(visual.orbitBias)||(-.16+hash01(seed,15)*.32),
+      iridescenceBias:Number(visual.iridescenceBias)||(.85+hash01(seed,16)*.35)
     };
   };
 }
