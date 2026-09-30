@@ -192,3 +192,40 @@ Die Webcam-Reaktion läuft bewusst verzögert und geglättet:
 - alle Reaktionsstärken sind zentral in `VISUAL_PARAMS.reaction` steuerbar
 
 Für ein trägeres, fast flüssiges Verhalten einfach `delayMs` und `responseMs` erhöhen. Für direktere Reaktion entsprechend reduzieren.
+
+
+## Bloom / Glow
+
+Die Szene wird jetzt über Three.js Postprocessing gerendert:
+
+- `EffectComposer`
+- `RenderPass`
+- `UnrealBloomPass`
+- `OutputPass`
+
+Die Default-Werte liegen in `src/visual-config.js`:
+
+```js
+bloom: {
+  strength: 1.05,
+  radius: 0.62,
+  threshold: 0.72
+}
+```
+
+Damit glühen vor allem irisierende Kanten, Wireframes, Headlines und helle Glitch-/Linienbereiche.
+
+## Verteilung
+
+Die OBJ-Anchor-Verteilung wurde wieder entfernt. Die Szene nutzt wieder die frühere radiale, stark zentrumsgewichtete Triangle-Verteilung: viele große Dreiecke im Zentrum, nach außen schnell weniger, dazu kleine Moiré-Triangles, Tetraeder und Halo-Layer.
+
+Die Verteilung wird bei jedem Laden mit einem neuen Seed generiert:
+
+```js
+generation: {
+  randomizeEachLoad: true,
+  seed: 3417
+}
+```
+
+Mit `randomizeEachLoad: false` bleibt die Komposition reproduzierbar.
