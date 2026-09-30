@@ -133,14 +133,14 @@ def scan_case(folder: Path):
         inferred_tags.append("Visual")
 
     visual = {
-        "heroScale": round(0.94 + stable_unit(seed, 10) * 0.16, 4),
-        "moireScale": round(0.90 + stable_unit(seed, 11) * 0.20, 4),
-        "auraScale": round(0.90 + stable_unit(seed, 12) * 0.24, 4),
-        "wireScale": round(0.94 + stable_unit(seed, 13) * 0.14, 4),
-        "bloomBias": round(-0.05 + stable_unit(seed, 14) * 0.14, 4),
-        "orbitBias": round(-0.16 + stable_unit(seed, 15) * 0.32, 4),
-        "iridescenceBias": round(0.85 + stable_unit(seed, 16) * 0.35, 4),
-        "moireBias": round(-0.12 + stable_unit(seed, 17) * 0.28, 4),
+        "bandScale": round(0.92 + stable_unit(seed, 10) * 0.22, 4),
+        "bandDepth": round(0.88 + stable_unit(seed, 11) * 0.28, 4),
+        "bandTwist": round(-0.22 + stable_unit(seed, 12) * 0.44, 4),
+        "wireScale": round(0.90 + stable_unit(seed, 13) * 0.24, 4),
+        "typeScale": round(0.94 + stable_unit(seed, 14) * 0.12, 4),
+        "bloomBias": round(-0.05 + stable_unit(seed, 15) * 0.16, 4),
+        "orbitBias": round(-0.18 + stable_unit(seed, 16) * 0.36, 4),
+        "iridescenceBias": round(0.86 + stable_unit(seed, 17) * 0.34, 4),
     }
     visual.update(metadata.get("visual", {}))
 
