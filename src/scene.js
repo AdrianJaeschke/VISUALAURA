@@ -523,8 +523,8 @@ export async function createVisualScene(stage,cases,videoTexture){
 
   const giantMat=new THREE.MeshPhysicalMaterial({
     color:new THREE.Color(P.layers.giantWire.darkColor),
-    emissive:new THREE.Color("#030407"),
-    emissiveIntensity:.12,
+    emissive:new THREE.Color(P.layers.giantWire.emissiveColor),
+    emissiveIntensity:P.layers.giantWire.emissiveIntensity,
     metalness:P.layers.giantWire.metalness,
     roughness:P.layers.giantWire.roughness,
     clearcoat:P.layers.giantWire.clearcoat,
