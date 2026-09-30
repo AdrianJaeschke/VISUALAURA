@@ -59,8 +59,6 @@ body.case-presentation-open .case-meta{opacity:.78}
   pointer-events:none;
   transform:translateY(-8px);
 }
-.va-console.collapsed .va-console__body,
-.va-console.collapsed .va-console__footer{display:none}
 .va-console__header{
   min-height:52px;
   display:flex;
@@ -81,14 +79,6 @@ body.case-presentation-open .case-meta{opacity:.78}
   color:rgba(255,255,255,.44);
   font-size:8px;
   letter-spacing:.18em;
-}
-.va-console__collapse{
-  width:30px;
-  height:30px;
-  padding:0;
-  display:grid;
-  place-items:center;
-  border-radius:8px;
 }
 .va-console__body{
   overflow:auto;
