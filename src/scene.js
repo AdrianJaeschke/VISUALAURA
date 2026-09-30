@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import {VISUAL_PARAMS as P} from "./visual-config.js";
 
 function rand(seedA,seedB=1){
   return Math.abs(Math.sin(seedA*12.9898+seedB*78.233)*43758.5453)%1;
@@ -250,20 +251,25 @@ export function createVisualScene(stage,cases,videoTexture){
   root.add(largeGroup);
   const largeTriangles=[];
   const largeWireRings=[];
-  const depthBands=[-2.6,-1.15,.15,1.45,2.65];
-  const largeCount=28;
+  const depthBands=P.geometry.large.depthBands;
+  const largeCount=P.geometry.large.count;
+  const largeRadius=P.reference.aura.radialMax*P.geometry.large.radiusScale;
 
   for(let i=0;i<largeCount;i++){
     const mesh=new THREE.Mesh(triGeo,reflectiveMat);
-    const centerBias=radialFalloff(i+10,4.2,3.6);
+    const centerBias=radialFalloff(i+10,P.geometry.large.falloff,largeRadius);
     const angle=rand(i,7.1)*Math.PI*2;
     const band=depthBands[i%depthBands.length];
-    const bandJitter=(rand(i,8.2)-.5)*.55;
-    const size=THREE.MathUtils.lerp(1.05,2.9,1-centerBias/3.6);
+    const bandJitter=(rand(i,8.2)-.5)*P.geometry.large.depthJitter;
+    const size=THREE.MathUtils.lerp(
+      P.geometry.large.sizeMin,
+      P.geometry.large.sizeMax,
+      1-centerBias/largeRadius
+    );
 
     mesh.position.set(
       Math.cos(angle)*centerBias,
-      (rand(i,4.4)-.5)*3.1,
+      (rand(i,4.4)-.5)*P.geometry.large.ySpread,
       band+bandJitter
     );
 
@@ -282,7 +288,7 @@ export function createVisualScene(stage,cases,videoTexture){
     largeGroup.add(mesh);
 
     const rings=[];
-    for(let n=1;n<=3;n++){
+    for(let n=1;n<=P.geometry.large.nestedRings;n++){
       const line=new THREE.LineSegments(
         triangleLineGeometry(size*(1-n*.16)),
         new THREE.LineBasicMaterial({
@@ -303,18 +309,22 @@ export function createVisualScene(stage,cases,videoTexture){
     largeWireRings.push(rings);
   }
 
-  const smallCount=560;
+  const smallCount=P.geometry.small.count;
   const smallMesh=new THREE.InstancedMesh(triGeo,moireMat,smallCount);
   smallMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const smallSeeds=[];
   const temp=new THREE.Object3D();
 
   for(let i=0;i<smallCount;i++){
-    const depthBand=i%7;
-    const z=-9+depthBand*2.2+(rand(i,8.1)-.5)*.7;
-    const radius=radialFalloff(i+200,2.65,7.4);
+    const depthBand=i%P.geometry.small.depthBands;
+    const z=P.geometry.small.zMin+depthBand*P.geometry.small.zStep+(rand(i,8.1)-.5)*P.geometry.small.zJitter;
+    const radius=radialFalloff(
+      i+200,
+      P.geometry.small.falloff,
+      P.reference.shards.radialMax*P.geometry.small.radiusScale
+    );
     const angle=rand(i+300,2.1)*Math.PI*2;
-    const y=(rand(i+400,5.7)-.5)*5.8;
+    const y=(rand(i+400,5.7)-.5)*P.geometry.small.ySpread;
 
     temp.position.set(Math.cos(angle)*radius,y,z);
     temp.rotation.set(
@@ -323,7 +333,7 @@ export function createVisualScene(stage,cases,videoTexture){
       rand(i,6.8)*Math.PI
     );
 
-    const s=THREE.MathUtils.lerp(.045,.32,rand(i,9.2));
+    const s=THREE.MathUtils.lerp(P.geometry.small.sizeMin,P.geometry.small.sizeMax,rand(i,9.2));
     temp.scale.setScalar(s);
     temp.updateMatrix();
     smallMesh.setMatrixAt(i,temp.matrix);
@@ -341,7 +351,7 @@ export function createVisualScene(stage,cases,videoTexture){
   const tetraGeo=new THREE.TetrahedronGeometry(.42,0);
   const tetraMeshes=[];
 
-  for(let i=0;i<96;i++){
+  for(let i=0;i<P.geometry.tetra.count;i++){
     const tetraMat=new THREE.MeshPhysicalMaterial({
       color:0x0d0f16,
       metalness:.88,
@@ -350,10 +360,14 @@ export function createVisualScene(stage,cases,videoTexture){
       opacity:.96
     });
     const tetra=new THREE.Mesh(tetraGeo,tetraMat);
-    const radius=THREE.MathUtils.lerp(.8,7.2,rand(i+500,4.2));
+    const radius=THREE.MathUtils.lerp(
+      P.reference.core.size*.4,
+      P.reference.struts.radialMax*P.geometry.tetra.radiusScale,
+      rand(i+500,4.2)
+    );
     const angle=rand(i+700,1.8)*Math.PI*2;
-    const z=THREE.MathUtils.lerp(-10,5,rand(i+800,2.2));
-    const y=(rand(i+600,7.6)-.5)*5.5;
+    const z=THREE.MathUtils.lerp(P.geometry.tetra.zMin,P.geometry.tetra.zMax,rand(i+800,2.2));
+    const y=(rand(i+600,7.6)-.5)*P.geometry.tetra.ySpread;
 
     tetra.position.set(Math.cos(angle)*radius,y,z);
     tetra.rotation.set(
@@ -362,7 +376,7 @@ export function createVisualScene(stage,cases,videoTexture){
       rand(i+1100,9.1)*Math.PI
     );
 
-    const s=THREE.MathUtils.lerp(.08,.48,rand(i+1200,1.5));
+    const s=THREE.MathUtils.lerp(P.geometry.tetra.sizeMin,P.geometry.tetra.sizeMax,rand(i+1200,1.5));
     tetra.scale.setScalar(s);
 
     const edges=new THREE.LineSegments(
@@ -385,10 +399,10 @@ export function createVisualScene(stage,cases,videoTexture){
 
   const sawGeo=new THREE.BufferGeometry();
   const sawPositions=[];
-  for(let row=0;row<8;row++){
+  for(let row=0;row<P.geometry.saw.rows;row++){
     const z=-5.5+row*1.45;
     const y=-2.4+row*.68;
-    for(let i=0;i<38;i++){
+    for(let i=0;i<P.geometry.saw.columns;i++){
       const x=-5.7+i*.3;
       const s=.15+(row%3)*.02;
       const h=Math.sqrt(3)/2*s;
@@ -412,17 +426,21 @@ export function createVisualScene(stage,cases,videoTexture){
   root.add(saw);
 
   const haloGroups=[];
-  for(let d=0;d<5;d++){
+  for(let d=0;d<P.geometry.halo.layers;d++){
     const hg=new THREE.Group();
-    hg.position.z=-4.5-d*3.25;
-    hg.scale.setScalar(1.28+d*.36);
+    hg.position.z=P.geometry.halo.zStart+d*P.geometry.halo.zStep;
+    hg.scale.setScalar(P.geometry.halo.baseScale+d*P.geometry.halo.scaleStep);
     hg.rotation.z=(d%2?1:-1)*(.07+d*.02);
 
-    const count=56;
+    const count=P.geometry.halo.count;
     const haloMesh=new THREE.InstancedMesh(triGeo,moireMat,count);
     const o=new THREE.Object3D();
     for(let i=0;i<count;i++){
-      const radius=radialFalloff(800+d*100+i,2.2,5.9);
+      const radius=radialFalloff(
+        800+d*100+i,
+        2.2,
+        P.reference.struts.radialMax*P.geometry.halo.radiusScale
+      );
       const angle=rand(i+d*100,3.6)*Math.PI*2;
       o.position.set(
         Math.cos(angle)*radius,
@@ -441,7 +459,7 @@ export function createVisualScene(stage,cases,videoTexture){
 
   const networkGeo=new THREE.BufferGeometry();
   const networkPositions=[];
-  for(let i=0;i<320;i++){
+  for(let i=0;i<P.geometry.network.segments;i++){
     const a=largeTriangles[i%largeTriangles.length].position;
     const b=largeTriangles[(i*5+7)%largeTriangles.length].position;
     networkPositions.push(a.x,a.y,a.z,b.x,b.y,b.z);
@@ -531,7 +549,8 @@ export function createVisualScene(stage,cases,videoTexture){
 }
 
 export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
-  const motion=cameraMotion.motion||0;
+  const motionRaw=cameraMotion.motion||0;
+  const motion=motionRaw*motionRaw*(3-2*motionRaw);
   const humanX=cameraMotion.motionX||0;
   const humanY=cameraMotion.motionY||0;
   const humanVX=cameraMotion.velocityX||0;
@@ -550,15 +569,15 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
 
   root.rotation.x=THREE.MathUtils.lerp(
     root.rotation.x,
-    pointer.y*.14+state.tiltBias*.12-humanY*.22,
+    pointer.y*.14+state.tiltBias*.12-humanY*P.reaction.root.cameraY,
     .04
   );
   root.rotation.y=THREE.MathUtils.lerp(
     root.rotation.y,
-    pointer.x*.18+state.rotationBias*.035+humanX*.3,
+    pointer.x*.18+state.rotationBias*.035+humanX*P.reaction.root.cameraX,
     .04
   );
-  root.rotation.z=Math.sin(time*.13)*.025+humanVX*.9;
+  root.rotation.z=Math.sin(time*.13)*.025+humanVX*P.reaction.root.velocityRoll;
 
   reflectiveMat.uniforms.uTime.value=time;
   reflectiveMat.uniforms.uMotion.value=motion;
@@ -580,16 +599,20 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
     const scaleBase=tri.userData.baseScale;
     const depth=tri.userData.depthBand;
 
-    const proximity=Math.max(0,1-Math.hypot(base.x-humanCX*3.2,base.y-humanCY*2.4)/4.8);
+    const proximity=Math.max(
+      0,
+      1-Math.hypot(base.x-humanCX*largeRadius,base.y-humanCY*P.geometry.large.ySpread)/
+        P.reaction.large.influenceRadius
+    );
     const humanPush=motion*proximity;
-    tri.position.x=base.x+Math.sin(time*.18+i)*.04+humanX*(.18+.32*proximity);
-    tri.position.y=base.y+Math.cos(time*.16+i*.7)*.04+humanY*(.14+.25*proximity);
-    tri.position.z=base.z+Math.sin(time*.12+i*.35)*(.05+.02*depth)+humanPush*.34;
+    tri.position.x=base.x+Math.sin(time*.18+i)*.04+humanX*P.reaction.large.xPush*proximity;
+    tri.position.y=base.y+Math.cos(time*.16+i*.7)*.04+humanY*P.reaction.large.yPush*proximity;
+    tri.position.z=base.z+Math.sin(time*.12+i*.35)*(.05+.02*depth)+humanPush*P.reaction.large.zPush;
 
-    tri.rotation.x=tri.userData.baseRot.x+Math.sin(time*.11+i)*.04-humanVY*(1.8+.06*i);
-    tri.rotation.y=tri.userData.baseRot.y+Math.cos(time*.09+i)*.04+humanVX*(1.8+.06*i);
+    tri.rotation.x=tri.userData.baseRot.x+Math.sin(time*.11+i)*.04-humanVY*P.reaction.large.velocityTilt*proximity;
+    tri.rotation.y=tri.userData.baseRot.y+Math.cos(time*.09+i)*.04+humanVX*P.reaction.large.velocityTilt*proximity;
 
-    const pulse=1+motion*(.035+.055*proximity)+Math.sin(time*.35+i)*.01;
+    const pulse=1+motion*P.reaction.large.scalePulse*proximity+Math.sin(time*.35+i)*.01;
     tri.scale.setScalar(scaleBase*pulse);
   });
 
@@ -607,16 +630,18 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
     temp.position.copy(s.position);
     const sx=s.position.x-humanCX*4.1;
     const sy=s.position.y-humanCY*3.0;
-    const near=Math.max(0,1-Math.hypot(sx,sy)/5.4);
-    temp.position.x+=humanX*near*.34;
-    temp.position.y+=humanY*near*.28;
-    temp.position.z+=Math.sin(time*s.speed+i)*.08+motion*near*.38;
+    const near=Math.max(0,1-Math.hypot(sx,sy)/P.reaction.small.influenceRadius);
+    temp.position.x+=humanX*near*P.reaction.small.xPush;
+    temp.position.y+=humanY*near*P.reaction.small.yPush;
+    temp.position.z+=Math.sin(time*s.speed+i)*.08+motion*near*P.reaction.small.zPush;
     temp.rotation.set(
-      s.rotation.x+time*.05*s.speed-humanVY*2.2*near,
-      s.rotation.y-time*.04*s.speed+humanVX*2.2*near,
+      s.rotation.x+time*.05*s.speed-humanVY*P.reaction.small.velocityTilt*near,
+      s.rotation.y-time*.04*s.speed+humanVX*P.reaction.small.velocityTilt*near,
       s.rotation.z+Math.sin(time*.18+i)*.06
     );
-    temp.scale.setScalar(s.scale*(1+Math.sin(time*.4+i)*.035*state.density+motion*near*.12));
+    temp.scale.setScalar(
+      s.scale*(1+Math.sin(time*.4+i)*.035*state.density+motion*near*P.reaction.small.scalePulse)
+    );
     temp.updateMatrix();
     smallMesh.setMatrixAt(i,temp.matrix);
   });
@@ -626,12 +651,12 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
     const base=tetra.userData.basePos;
     const dx=base.x-humanCX*4.5;
     const dy=base.y-humanCY*3.2;
-    const near=Math.max(0,1-Math.hypot(dx,dy)/6.2);
-    tetra.position.x=base.x+humanX*near*.5;
-    tetra.position.y=base.y+humanY*near*.4;
-    tetra.position.z=base.z+Math.sin(time*.24+i)*.12+motion*near*.55;
-    tetra.rotation.x=tetra.userData.baseRot.x+time*.03-humanVY*3.2*near;
-    tetra.rotation.y=tetra.userData.baseRot.y-time*.025+humanVX*3.2*near;
+    const near=Math.max(0,1-Math.hypot(dx,dy)/P.reaction.tetra.influenceRadius);
+    tetra.position.x=base.x+humanX*near*P.reaction.tetra.xPush;
+    tetra.position.y=base.y+humanY*near*P.reaction.tetra.yPush;
+    tetra.position.z=base.z+Math.sin(time*.24+i)*.12+motion*near*P.reaction.tetra.zPush;
+    tetra.rotation.x=tetra.userData.baseRot.x+time*.03-humanVY*P.reaction.tetra.velocityTilt*near;
+    tetra.rotation.y=tetra.userData.baseRot.y-time*.025+humanVX*P.reaction.tetra.velocityTilt*near;
   });
 
   saw.rotation.y=Math.sin(time*.08)*.08;
@@ -640,11 +665,13 @@ export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
   sawMat.color.copy(new THREE.Color().lerpColors(state.palette[0],new THREE.Color(0xffffff),.78));
 
   haloGroups.forEach((g,i)=>{
-    g.rotation.z+=(i%2?1:-1)*(.00055+i*.00022)+(humanVX-humanVY)*.018*(i+1);
-    g.position.x=Math.sin(time*.08+i)*.14*(i+1)+humanX*.24*(i+1);
-    g.position.y=Math.cos(time*.07+i*.7)*.08*(i+1)+humanY*.18*(i+1);
-    const depthPulse=1+motion*.035*(i+1);
-    g.scale.setScalar((1.28+i*.36)*depthPulse);
+    g.rotation.z+=(i%2?1:-1)*(.00055+i*.00022)+(humanVX-humanVY)*P.reaction.halo.velocitySpin*(i+1);
+    g.position.x=Math.sin(time*.08+i)*.14*(i+1)+humanX*P.reaction.halo.xPush*(i+1);
+    g.position.y=Math.cos(time*.07+i*.7)*.08*(i+1)+humanY*P.reaction.halo.yPush*(i+1);
+    const depthPulse=1+motion*P.reaction.halo.scalePulse*(i+1);
+    g.scale.setScalar(
+      (P.geometry.halo.baseScale+i*P.geometry.halo.scaleStep)*depthPulse
+    );
   });
 
   networkMat.opacity=.045+state.density*.055+motion*.12;
