@@ -354,3 +354,36 @@ IAA 2021
 ```
 
 `tools/build-cases.py` übernimmt Titel und Beschreibung automatisch in `media/cases.json`. Beides wird ohne weitere Codeänderung auf der Website angezeigt.
+
+
+## Aktuelle visuelle Architektur: Amorphous Ribbon
+
+Die bisherige 1/3/many/1-Dreiecks-Komposition wurde durch eine zusammenhängende, amorphe Installation ersetzt.
+
+- geschlossener reaktiver Polygon-Ribbon aus triangulierten Facetten
+- prozedurale Radius-, Breiten-, Falt- und Tiefenvariation
+- irisierender Fresnel-/Prism-Shader mit hellen Facettenkanten
+- eigenes trianguliertes Wire-Skin direkt auf dem Band
+- zusätzliche schwebende Triangle-Wireframes als räumliche Aura
+- Wire-Network und Lichtpunkte zwischen den äußeren Dreiecken
+- räumliche Typografie rund um die Installation
+- Case-Titel und Beschreibung werden automatisch aus den TXT-Dateien der Media-Ordner übernommen
+- Webcam-Bewegung beeinflusst Band, Wire-Aura, Licht und Typografie
+- globaler Bayer-Dither bleibt als Postprocessing über der gesamten Szene
+- Case-Wechsel verändert Scale, Tiefe, Twist, Wire-Aura, Bloom und Irideszenz
+
+Die Hauptparameter liegen in `src/visual-config.js` unter:
+
+```js
+composition.band
+composition.wireAura
+composition.typography
+material.band
+material.wire
+material.points
+reaction
+bloom
+postfx.dither
+```
+
+Die PARAMS-Konsole wurde vollständig auf dieses Ribbon-System umgestellt.
