@@ -1,11 +1,13 @@
 {
-  "generated": "2026-09-30T15:00:49",
+  "generated": "2026-09-30T15:09:21",
   "cases": [
     {
       "id": "case1",
       "slug": "case1",
       "folder": "case1",
-      "title": "Case1",
+      "title": "PORSCHE PIONEERS CIRCLE",
+      "description": "First immersive NFT Experience Campaign",
+      "textSource": "case1.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -28,42 +30,44 @@
       "complexity": 0.696,
       "featured": false,
       "visual": {
-        "scaffoldScale": 1.0519,
-        "shellScale": 0.9168,
-        "giantScale": 0.9646,
-        "bloomBias": -0.0715,
-        "orbitBias": -0.0109,
-        "moireBias": -0.0714
+        "heroScale": 1.0413,
+        "moireScale": 0.9153,
+        "auraScale": 0.9553,
+        "wireScale": 0.9454,
+        "bloomBias": 0.0157,
+        "orbitBias": -0.1045,
+        "iridescenceBias": 1.0816,
+        "moireBias": -0.0071
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case1/1 Kopie.jpg",
-            "alt": "Case1 — 1 Kopie"
+            "alt": "PORSCHE PIONEERS CIRCLE — 1 Kopie"
           },
           {
             "src": "/media/case1/a.storyblok Kopie.jpg",
-            "alt": "Case1 — a.storyblok Kopie"
+            "alt": "PORSCHE PIONEERS CIRCLE — a.storyblok Kopie"
           },
           {
             "src": "/media/case1/a.storyblok-1 Kopie.jpg",
-            "alt": "Case1 — a.storyblok-1 Kopie"
+            "alt": "PORSCHE PIONEERS CIRCLE — a.storyblok-1 Kopie"
           },
           {
             "src": "/media/case1/Download Kopie.jpg",
-            "alt": "Case1 — Download Kopie"
+            "alt": "PORSCHE PIONEERS CIRCLE — Download Kopie"
           },
           {
             "src": "/media/case1/tumblr_79c6adecc2ac71537ce6a0ecaa1d125e_db06575f_1280.jpg",
-            "alt": "Case1 — tumblr_79c6adecc2ac71537ce6a0ecaa1d125e_db06575f_1280"
+            "alt": "PORSCHE PIONEERS CIRCLE — tumblr_79c6adecc2ac71537ce6a0ecaa1d125e_db06575f_1280"
           },
           {
             "src": "/media/case1/tumblr_7db639e412a4fb7265056eca08d3defd_a97b1970_1280.png",
-            "alt": "Case1 — tumblr_7db639e412a4fb7265056eca08d3defd_a97b1970_1280"
+            "alt": "PORSCHE PIONEERS CIRCLE — tumblr_7db639e412a4fb7265056eca08d3defd_a97b1970_1280"
           },
           {
             "src": "/media/case1/tumblr_950045df631fab60610a6c648c4cad8e_40776e95_1280.png",
-            "alt": "Case1 — tumblr_950045df631fab60610a6c648c4cad8e_40776e95_1280"
+            "alt": "PORSCHE PIONEERS CIRCLE — tumblr_950045df631fab60610a6c648c4cad8e_40776e95_1280"
           }
         ]
       },
@@ -75,7 +79,9 @@
       "id": "case2",
       "slug": "case2",
       "folder": "case2",
-      "title": "Case2",
+      "title": "Bosch Car Service 100 Years",
+      "description": "Worldwide Campaign",
+      "textSource": "case2.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -98,38 +104,40 @@
       "complexity": 0.668,
       "featured": false,
       "visual": {
-        "scaffoldScale": 0.9964,
-        "shellScale": 1.1185,
-        "giantScale": 1.1251,
-        "bloomBias": -0.0664,
-        "orbitBias": 0.1324,
-        "moireBias": 0.008
+        "heroScale": 1.0043,
+        "moireScale": 1.0986,
+        "auraScale": 1.093,
+        "wireScale": 0.9486,
+        "bloomBias": 0.0715,
+        "orbitBias": -0.0137,
+        "iridescenceBias": 0.949,
+        "moireBias": -0.0034
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case2/Portfolio_Adrian_Jaeschke1.jpeg",
-            "alt": "Case2 — Portfolio_Adrian_Jaeschke1"
+            "alt": "Bosch Car Service 100 Years — Portfolio_Adrian_Jaeschke1"
           },
           {
             "src": "/media/case2/Portfolio_Adrian_Jaeschke2.jpeg",
-            "alt": "Case2 — Portfolio_Adrian_Jaeschke2"
+            "alt": "Bosch Car Service 100 Years — Portfolio_Adrian_Jaeschke2"
           },
           {
             "src": "/media/case2/Portfolio_Adrian_Jaeschke3.jpeg",
-            "alt": "Case2 — Portfolio_Adrian_Jaeschke3"
+            "alt": "Bosch Car Service 100 Years — Portfolio_Adrian_Jaeschke3"
           },
           {
             "src": "/media/case2/Portfolio_Adrian_Jaeschke4.jpeg",
-            "alt": "Case2 — Portfolio_Adrian_Jaeschke4"
+            "alt": "Bosch Car Service 100 Years — Portfolio_Adrian_Jaeschke4"
           },
           {
             "src": "/media/case2/Portfolio_Adrian_Jaeschke5.jpeg",
-            "alt": "Case2 — Portfolio_Adrian_Jaeschke5"
+            "alt": "Bosch Car Service 100 Years — Portfolio_Adrian_Jaeschke5"
           },
           {
             "src": "/media/case2/tumblr_cc5387ba0d438738b4ba82379a34abc4_5099e5ce_1280.jpg",
-            "alt": "Case2 — tumblr_cc5387ba0d438738b4ba82379a34abc4_5099e5ce_1280"
+            "alt": "Bosch Car Service 100 Years — tumblr_cc5387ba0d438738b4ba82379a34abc4_5099e5ce_1280"
           }
         ]
       },
@@ -141,7 +149,9 @@
       "id": "case3",
       "slug": "case3",
       "folder": "case3",
-      "title": "Case3",
+      "title": "AUDI HOUSE OF PROGRESS",
+      "description": "IAA 2021",
+      "textSource": "case3.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -164,26 +174,28 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "scaffoldScale": 1.0616,
-        "shellScale": 0.908,
-        "giantScale": 1.0741,
-        "bloomBias": -0.0128,
-        "orbitBias": 0.0318,
-        "moireBias": 0.0646
+        "heroScale": 1.0478,
+        "moireScale": 0.9073,
+        "auraScale": 1.0493,
+        "wireScale": 0.9828,
+        "bloomBias": 0.0324,
+        "orbitBias": 0.0509,
+        "iridescenceBias": 1.097,
+        "moireBias": -0.0737
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case3/1.jpg",
-            "alt": "Case3 — 1"
+            "alt": "AUDI HOUSE OF PROGRESS — 1"
           },
           {
             "src": "/media/case3/tumblr_12d9ebbb74e2769dd3646bc8bb6c1a73_d523a667_1280.jpg",
-            "alt": "Case3 — tumblr_12d9ebbb74e2769dd3646bc8bb6c1a73_d523a667_1280"
+            "alt": "AUDI HOUSE OF PROGRESS — tumblr_12d9ebbb74e2769dd3646bc8bb6c1a73_d523a667_1280"
           },
           {
             "src": "/media/case3/tumblr_a836f5aa087795fc5b8f8659a3d7e1dc_3d5c4fee_1280.jpg",
-            "alt": "Case3 — tumblr_a836f5aa087795fc5b8f8659a3d7e1dc_3d5c4fee_1280"
+            "alt": "AUDI HOUSE OF PROGRESS — tumblr_a836f5aa087795fc5b8f8659a3d7e1dc_3d5c4fee_1280"
           }
         ]
       },
@@ -195,7 +207,9 @@
       "id": "case4",
       "slug": "case4",
       "folder": "case4",
-      "title": "Case4",
+      "title": "STUDIO OF WONDERS",
+      "description": "Munich, 2023",
+      "textSource": "case3.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -218,38 +232,40 @@
       "complexity": 0.668,
       "featured": false,
       "visual": {
-        "scaffoldScale": 0.9994,
-        "shellScale": 0.9694,
-        "giantScale": 0.9286,
-        "bloomBias": 0.0853,
-        "orbitBias": 0.107,
-        "moireBias": -0.0503
+        "heroScale": 1.0062,
+        "moireScale": 0.9631,
+        "auraScale": 0.9245,
+        "wireScale": 1.0452,
+        "bloomBias": 0.0616,
+        "orbitBias": -0.0804,
+        "iridescenceBias": 1.046,
+        "moireBias": 0.0281
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case4/1.jpg",
-            "alt": "Case4 — 1"
+            "alt": "STUDIO OF WONDERS — 1"
           },
           {
             "src": "/media/case4/Portfolio_Adrian_Jaeschke.jpeg",
-            "alt": "Case4 — Portfolio_Adrian_Jaeschke"
+            "alt": "STUDIO OF WONDERS — Portfolio_Adrian_Jaeschke"
           },
           {
             "src": "/media/case4/Portfolio_Adrian_Jaeschke2.jpeg",
-            "alt": "Case4 — Portfolio_Adrian_Jaeschke2"
+            "alt": "STUDIO OF WONDERS — Portfolio_Adrian_Jaeschke2"
           },
           {
             "src": "/media/case4/Portfolio_Adrian_Jaeschke3.jpeg",
-            "alt": "Case4 — Portfolio_Adrian_Jaeschke3"
+            "alt": "STUDIO OF WONDERS — Portfolio_Adrian_Jaeschke3"
           },
           {
             "src": "/media/case4/tumblr_4fae4e1854529ae2c6df622ba0e64b5b_2e7ebb10_1280.jpg",
-            "alt": "Case4 — tumblr_4fae4e1854529ae2c6df622ba0e64b5b_2e7ebb10_1280"
+            "alt": "STUDIO OF WONDERS — tumblr_4fae4e1854529ae2c6df622ba0e64b5b_2e7ebb10_1280"
           },
           {
             "src": "/media/case4/tumblr_bfb86bd09907a5cbf5a503b0a0e25834_11f054e0_1280.jpg",
-            "alt": "Case4 — tumblr_bfb86bd09907a5cbf5a503b0a0e25834_11f054e0_1280"
+            "alt": "STUDIO OF WONDERS — tumblr_bfb86bd09907a5cbf5a503b0a0e25834_11f054e0_1280"
           }
         ]
       },
@@ -261,7 +277,9 @@
       "id": "case5",
       "slug": "case5",
       "folder": "case5",
-      "title": "Case5",
+      "title": "ALLIANZ DIRECT",
+      "description": "Pop Up Shop",
+      "textSource": "case3.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -284,26 +302,28 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "scaffoldScale": 1.108,
-        "shellScale": 1.0375,
-        "giantScale": 1.1335,
-        "bloomBias": -0.0294,
-        "orbitBias": -0.0613,
-        "moireBias": 0.1201
+        "heroScale": 1.0787,
+        "moireScale": 1.025,
+        "auraScale": 1.1002,
+        "wireScale": 0.9722,
+        "bloomBias": -0.0038,
+        "orbitBias": 0.1144,
+        "iridescenceBias": 1.0689,
+        "moireBias": 0.018
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case5/1.jpg",
-            "alt": "Case5 — 1"
+            "alt": "ALLIANZ DIRECT — 1"
           },
           {
             "src": "/media/case5/tumblr_eecd52878c0a079476fe0eae1f4ff572_76258d8b_1280.jpg",
-            "alt": "Case5 — tumblr_eecd52878c0a079476fe0eae1f4ff572_76258d8b_1280"
+            "alt": "ALLIANZ DIRECT — tumblr_eecd52878c0a079476fe0eae1f4ff572_76258d8b_1280"
           },
           {
             "src": "/media/case5/tumblr_f297dbb6d90fb9e4ddb0ee62f3abe6b8_1f615217_1280.jpg",
-            "alt": "Case5 — tumblr_f297dbb6d90fb9e4ddb0ee62f3abe6b8_1f615217_1280"
+            "alt": "ALLIANZ DIRECT — tumblr_f297dbb6d90fb9e4ddb0ee62f3abe6b8_1f615217_1280"
           }
         ]
       },
@@ -315,7 +335,9 @@
       "id": "case6",
       "slug": "case6",
       "folder": "case6",
-      "title": "Case6",
+      "title": "OBI MACHBAR",
+      "description": "Pop Up Shop",
+      "textSource": "case3.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -338,30 +360,32 @@
       "complexity": 0.612,
       "featured": false,
       "visual": {
-        "scaffoldScale": 0.9838,
-        "shellScale": 1.1112,
-        "giantScale": 1.0883,
-        "bloomBias": 0.1032,
-        "orbitBias": 0.0197,
-        "moireBias": -0.103
+        "heroScale": 0.9959,
+        "moireScale": 1.092,
+        "auraScale": 1.0614,
+        "wireScale": 1.0566,
+        "bloomBias": 0.0277,
+        "orbitBias": -0.1406,
+        "iridescenceBias": 0.9722,
+        "moireBias": 0.0937
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case6/1.jpg",
-            "alt": "Case6 — 1"
+            "alt": "OBI MACHBAR — 1"
           },
           {
             "src": "/media/case6/Portfolio_Adrian_Jaeschke.jpeg",
-            "alt": "Case6 — Portfolio_Adrian_Jaeschke"
+            "alt": "OBI MACHBAR — Portfolio_Adrian_Jaeschke"
           },
           {
             "src": "/media/case6/tumblr_1442be04d6d813c8720f6ac6a169dae2_6e2f6b5f_1280.jpg",
-            "alt": "Case6 — tumblr_1442be04d6d813c8720f6ac6a169dae2_6e2f6b5f_1280"
+            "alt": "OBI MACHBAR — tumblr_1442be04d6d813c8720f6ac6a169dae2_6e2f6b5f_1280"
           },
           {
             "src": "/media/case6/tumblr_96ce1d713779ee0816132c15c610ed5c_ed1a955d_1280.jpg",
-            "alt": "Case6 — tumblr_96ce1d713779ee0816132c15c610ed5c_ed1a955d_1280"
+            "alt": "OBI MACHBAR — tumblr_96ce1d713779ee0816132c15c610ed5c_ed1a955d_1280"
           }
         ]
       },
@@ -373,7 +397,9 @@
       "id": "case7",
       "slug": "case7",
       "folder": "case7",
-      "title": "Case7",
+      "title": "PORSCHE TRACKS",
+      "description": "Worldwide Pop Up Shop",
+      "textSource": "case3.txt",
       "year": 2026,
       "location": {
         "city": "",
@@ -396,26 +422,28 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "scaffoldScale": 1.0486,
-        "shellScale": 1.0129,
-        "giantScale": 1.0336,
-        "bloomBias": -0.0398,
-        "orbitBias": 0.1264,
-        "moireBias": 0.1509
+        "heroScale": 1.0391,
+        "moireScale": 1.0026,
+        "auraScale": 1.0145,
+        "wireScale": 0.9656,
+        "bloomBias": 0.0691,
+        "orbitBias": 0.1496,
+        "iridescenceBias": 0.9842,
+        "moireBias": -0.085
       },
       "presentation": {
         "images": [
           {
             "src": "/media/case7/1.jpg",
-            "alt": "Case7 — 1"
+            "alt": "PORSCHE TRACKS — 1"
           },
           {
             "src": "/media/case7/tumblr_plc059Jpti1qi7duxo1_1280.jpg",
-            "alt": "Case7 — tumblr_plc059Jpti1qi7duxo1_1280"
+            "alt": "PORSCHE TRACKS — tumblr_plc059Jpti1qi7duxo1_1280"
           },
           {
             "src": "/media/case7/tumblr_plc059Jpti1qi7duxo3_1280.jpg",
-            "alt": "Case7 — tumblr_plc059Jpti1qi7duxo3_1280"
+            "alt": "PORSCHE TRACKS — tumblr_plc059Jpti1qi7duxo3_1280"
           }
         ]
       },
