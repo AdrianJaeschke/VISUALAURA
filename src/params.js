@@ -77,5 +77,39 @@ export const PARAMS = {
     wireOpacity: 0.18,
     networkOpacity: 0.075,
     backgroundCameraOpacity: 0.10
+  },
+
+  presentation: {
+    sceneZ: 3.15,
+    openResponseMs: 460,
+    closeResponseMs: 360,
+
+    headlineWidth: 4.6,
+    headlineHeight: 1.2,
+
+    videoWidth: 5.4,
+    videoHeight: 3.05,
+    videoOpacity: 0.72,
+
+    placeholderImages: 7,
+    maxImages: 10,
+    imageWidthMin: 1.0,
+    imageWidthMax: 1.8,
+    imageOpacity: 0.92,
+    imageZStart: -0.35,
+    imageDepthStep: 0.48,
+    radiusMin: 2.1,
+    radiusMax: 4.55,
+    verticalRatio: 0.63,
+    stagger: 0.42,
+
+    groupReactionX: 0.34,
+    groupReactionY: 0.26,
+    pointerReactionX: 0.14,
+    pointerReactionY: 0.10,
+    imageReactionX: 0.30,
+    imageReactionY: 0.23,
+    imageReactionZ: 0.32,
+    imageVelocityTilt: 1.2
   }
 };
