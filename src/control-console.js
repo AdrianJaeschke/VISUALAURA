@@ -50,6 +50,19 @@ const controls=[
   {group:"Typography",path:"composition.typography.scale",label:"Scale",min:.5,max:1.8,step:.01},
   {group:"Typography",path:"composition.typography.opacity",label:"Opacity",min:0,max:1,step:.01},
 
+  {group:"Camera Rail",path:"composition.cameraRail.distance",label:"Distance",min:1.2,max:6,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.height",label:"Height",min:-2,max:2,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.sideOffset",label:"Side Offset",min:-2,max:2,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.lookAhead",label:"Look Ahead",min:.005,max:.12,step:.001},
+  {group:"Camera Rail",path:"composition.cameraRail.transitionResponse",label:"Fly Response",min:.005,max:.12,step:.001},
+  {group:"Camera Rail",path:"composition.cameraRail.targetResponse",label:"Look Response",min:.005,max:.16,step:.001},
+  {group:"Camera Rail",path:"composition.cameraRail.orbitAzimuth",label:"Orbit 360",min:0,max:6.283,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.orbitElevation",label:"Elevation",min:0,max:1.5,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.pointerOrbit",label:"Pointer Orbit",min:0,max:1.5,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.motionOrbit",label:"Webcam Orbit",min:0,max:.5,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.minDistance",label:"Min Distance",min:.5,max:5,step:.01},
+  {group:"Camera Rail",path:"composition.cameraRail.maxDistance",label:"Max Distance",min:1,max:10,step:.01},
+
   {group:"Reaction",path:"reaction.root.pointerX",label:"Pointer X",min:0,max:.6,step:.01},
   {group:"Reaction",path:"reaction.root.pointerY",label:"Pointer Y",min:0,max:.6,step:.01},
   {group:"Reaction",path:"reaction.root.cameraX",label:"Camera X",min:0,max:.8,step:.01},
@@ -150,7 +163,8 @@ export function createControlConsole({visual,onStructuralChange}={}){
       "Amorphous Band",
       "Band Material",
       "Wire Aura",
-      "Typography"
+      "Typography",
+      "Camera Rail"
     ].includes(groupName);
 
     const summary=document.createElement("summary");
