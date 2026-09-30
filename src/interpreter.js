@@ -2,7 +2,7 @@ import * as THREE from "three";
 export function createInterpreter(cases){
   const years=cases.map(c=>c.year), min=Math.min(...years), max=Math.max(...years);
   return entry=>{
-    const y=max===min?.5:(entry.year-min)/(max-min);
+    const y=max===min ? .5 : (entry.year-min)/(max-min);
     return {
       morph:THREE.MathUtils.lerp(.28,.96,y),
       density:.35+entry.complexity*.9,
