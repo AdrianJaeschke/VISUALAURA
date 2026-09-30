@@ -1,0 +1,40 @@
+name: Rebuild case manifest
+
+on:
+  push:
+    paths:
+      - "media/**"
+      - "tools/build-cases.py"
+      - ".github/workflows/rebuild-cases.yml"
+      - "!media/cases.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-cases:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Build media manifest
+        run: python3 tools/build-cases.py
+
+      - name: Commit generated manifest
+        shell: bash
+        run: |
+          if git diff --quiet -- media/cases.json; then
+            echo "No manifest changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add media/cases.json
+          git commit -m "Rebuild case media manifest"
+          git push
