@@ -94,6 +94,6 @@ visual.renderer.setAnimationLoop(()=>{
   updateVisualScene(visual,t,state,pointer,cameraMotion,activeCase);
   presentation.update(dt,t,pointer,cameraMotion);
   glitchCSS(state.glitch,cameraMotion.motion);
-  visual.renderer.render(visual.scene,visual.camera);
+  visual.composer.render();
 });
 addEventListener("resize",visual.resize);
