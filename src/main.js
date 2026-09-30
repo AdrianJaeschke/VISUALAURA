@@ -15,7 +15,7 @@ const CASES=await loadCases();
 const cameraInput=createCameraInput(video,isMobile);
 const interpret=createInterpreter(CASES);
 const visual=await createVisualScene(el("stage"),CASES,cameraInput.texture);
-const presentation=createCasePresentation(visual.scene,visual.camera);
+const presentation=createCasePresentation(visual.scene,visual.camera,visual);
 createControlConsole({visual,onStructuralChange:()=>location.reload()});
 
 let activeCase=0,state=interpret(CASES[0]),targetState=state,wheelLock=false;
@@ -42,7 +42,7 @@ function setCase(i){
     })
   );
   [...dots.children].forEach((d,j)=>d.classList.toggle("active",j===activeCase));
-  if(presentation.isOpen())presentation.open(c);
+  if(presentation.isOpen())presentation.open(c,activeCase);
 }
 
 CASES.forEach((c,i)=>{
@@ -52,7 +52,7 @@ CASES.forEach((c,i)=>{
   b.onclick=async e=>{
     e.stopPropagation();
     if(i!==activeCase)setCase(i);
-    await presentation.open(CASES[activeCase]);
+    await presentation.open(CASES[activeCase],activeCase);
   };
   dots.appendChild(b);
 });
@@ -60,7 +60,7 @@ setCase(0);
 
 el("case-title").addEventListener("click",async e=>{
   e.stopPropagation();
-  await presentation.toggle(CASES[activeCase]);
+  await presentation.toggle(CASES[activeCase],activeCase);
 });
 el("case-kicker").addEventListener("click",async e=>{
   e.stopPropagation();
@@ -86,8 +86,8 @@ async function orientation(){if(!isMobile)return;if(typeof DeviceOrientationEven
 async function start(withCamera){if(withCamera&&navigator.mediaDevices?.getUserMedia){try{await cameraInput.start();mode.textContent=isMobile?"camera / spatial":"webcam / reflective"}catch(e){console.warn(e);mode.textContent=isMobile?"touch / spatial":"mouse / generative"}}else mode.textContent=isMobile?"touch / spatial":"mouse / generative";try{await orientation()}catch{}intro.classList.add("hidden")}
 el("start-camera").onclick=()=>start(true);el("start-no-camera").onclick=()=>start(false);
 el("help-copy").textContent=isMobile
-  ?"Touch · Gerät bewegen · Case antippen öffnet Medien · Kamera bleibt abstrakt"
-  :"Mouse bewegen · Scroll wechselt Cases · Case anklicken öffnet Medien";
+  ?"Touch / Gerät bewegen · Case wechseln fliegt am Band entlang · Medien am Viewpoint öffnen"
+  :"Mouse bewegt 360° um den aktiven Viewpoint · Scroll wechselt Cases entlang des Bands";
 
 function lerpState(a,b,t){
   return {
