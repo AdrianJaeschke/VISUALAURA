@@ -5,15 +5,15 @@ export const VISUAL_PARAMS={
   },
 
   bloom:{
-    strength:1.12,
-    radius:.72,
-    threshold:.64,
-    motionBoost:.24
+    strength:.58,
+    radius:.42,
+    threshold:.82,
+    motionBoost:.10
   },
 
   postfx:{
     dither:{
-      strength:.15,
+      strength:.13,
       scale:1.7,
       levels:7
     }
@@ -44,70 +44,85 @@ export const VISUAL_PARAMS={
       sizeMin:.34,
       sizeMax:1.22,
       networkStride:5,
-      networkOpacity:.20
+      networkOpacity:.16
     },
 
     typography:{
       scale:1,
-      opacity:.82
+      opacity:.76
+    },
+
+    cameraRail:{
+      distance:2.72,
+      height:.28,
+      sideOffset:.35,
+      lookAhead:.022,
+      transitionResponse:.036,
+      targetResponse:.052,
+      orbitAzimuth:Math.PI,
+      orbitElevation:.62,
+      pointerOrbit:.92,
+      motionOrbit:.12,
+      minDistance:1.9,
+      maxDistance:4.8
     }
   },
 
   reaction:{
     root:{
-      pointerX:.10,
-      pointerY:.075,
-      cameraX:.13,
-      cameraY:.10,
-      velocityRoll:.24
+      pointerX:.055,
+      pointerY:.042,
+      cameraX:.08,
+      cameraY:.065,
+      velocityRoll:.16
     },
 
     band:{
-      xPush:.18,
-      yPush:.15,
-      zPush:.30,
-      velocityTilt:.66,
-      scalePulse:.045,
-      response:.024
+      xPush:.12,
+      yPush:.10,
+      zPush:.22,
+      velocityTilt:.48,
+      scalePulse:.032,
+      response:.022
     },
 
     wireAura:{
-      xPush:.12,
-      yPush:.10,
-      zPush:.18,
-      velocityTilt:.38,
-      scalePulse:.025,
-      response:.015
+      xPush:.09,
+      yPush:.075,
+      zPush:.14,
+      velocityTilt:.30,
+      scalePulse:.018,
+      response:.014
     },
 
     typography:{
-      pointerX:.035,
-      pointerY:.025,
-      cameraX:.045,
-      cameraY:.035,
-      response:.018
+      pointerX:.022,
+      pointerY:.018,
+      cameraX:.028,
+      cameraY:.022,
+      response:.016
     }
   },
 
   material:{
     band:{
       opacity:.78,
-      brightness:1.20,
-      edgeGlow:1.55,
-      fresnelGlow:1.05,
-      whiteSpecular:.28,
+      brightness:1.12,
+      edgeGlow:1.08,
+      fresnelGlow:.76,
+      whiteSpecular:.20,
       speed:.16
     },
 
     wire:{
-      opacity:.58,
-      glow:1.55,
+      opacity:.50,
+      glow:1.02,
       speed:.12
     },
 
     points:{
-      opacity:.72,
-      size:.038
+      opacity:.58,
+      size:.034
     }
   }
 };
