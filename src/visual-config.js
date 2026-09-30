@@ -5,91 +5,115 @@ export const VISUAL_PARAMS={
   },
 
   bloom:{
-    strength:1.18,
-    radius:.72,
-    threshold:.56,
-    motionBoost:.34
+    strength:1.08,
+    radius:.68,
+    threshold:.60,
+    motionBoost:.24
   },
 
-  layers:{
-    scaffold:{
-      pointCount:118,
-      neighbors:3,
-      radius:2.15,
-      innerRadius:.72,
-      ellipsoid:[1.0,.82,.92],
-      spokeEvery:5,
-      opacity:.88,
-      motion:.12,
-      breathing:.025
+  composition:{
+    hero:{
+      size:2.85,
+      z:.30,
+      tiltX:-.04,
+      tiltY:.08
     },
 
-    shell:{
-      count:220,
-      reflectiveRatio:.18,
+    moire:{
+      count:3,
+      radius:2.05,
+      sizeMin:1.16,
+      sizeMax:1.66,
+      zStart:-.10,
+      zStep:-.16,
+      yRatio:.76,
+      rotationJitter:.22
+    },
+
+    aura:{
+      count:112,
       radiusMin:2.55,
-      radiusMax:4.65,
-      ellipsoid:[1.0,.84,.88],
-      radialJitter:.42,
-
-      moireSizeMin:.16,
-      moireSizeMax:.74,
-      reflectiveSizeMin:.72,
-      reflectiveSizeMax:1.72,
-
-      frontBias:.18,
-      rotationJitter:.48
+      radiusMax:5.15,
+      ellipsoid:[1.0,.80,.88],
+      sizeMin:.075,
+      sizeMax:.38,
+      depthSpread:2.6,
+      radialPower:.82
     },
 
-    giantWire:{
-      count:16,
-      radiusMin:4.7,
-      radiusMax:8.4,
-      ellipsoid:[1.0,.82,.92],
-      sizeMin:2.8,
-      sizeMax:6.6,
-      tubeRadius:.018,
+    outerWire:{
+      size:8.15,
+      z:-.62,
+      tubeRadius:.020,
+      tiltX:.02,
+      tiltY:-.06,
+      tiltZ:.08,
       darkColor:"#0b0c10",
       emissiveColor:"#020305",
-      emissiveIntensity:.03,
-      metalness:.88,
-      roughness:.24,
-      clearcoat:.85,
-      clearcoatRoughness:.16,
-      motion:.055
+      emissiveIntensity:.018,
+      metalness:.90,
+      roughness:.26,
+      clearcoat:.84,
+      clearcoatRoughness:.18
+    }
+  },
+
+  dither:{
+    hero:{
+      strength:.09,
+      scale:2.0
+    },
+    moire:{
+      strength:.34,
+      scale:1.55
+    },
+    aura:{
+      strength:.20,
+      scale:2.4
     }
   },
 
   reaction:{
     root:{
-      pointerX:.12,
-      pointerY:.10,
-      cameraX:.15,
-      cameraY:.13,
-      velocityRoll:.38
-    },
-
-    scaffold:{
+      pointerX:.10,
+      pointerY:.08,
       cameraX:.12,
-      cameraY:.1,
-      velocitySpin:.26,
-      motionScale:.018
+      cameraY:.10,
+      velocityRoll:.28
     },
 
-    shell:{
-      influenceRadius:4.9,
-      xPush:.28,
-      yPush:.22,
-      zPush:.32,
-      velocityTilt:1.0,
+    hero:{
+      xPush:.34,
+      yPush:.26,
+      zPush:.42,
+      velocityTilt:1.35,
       scalePulse:.045
     },
 
-    giantWire:{
-      xPush:.11,
-      yPush:.08,
-      velocityTilt:.22,
-      motionScale:.012
+    moire:{
+      xPush:.20,
+      yPush:.16,
+      zPush:.24,
+      velocityTilt:.72,
+      scalePulse:.025,
+      lag:.018
+    },
+
+    aura:{
+      xPush:.13,
+      yPush:.10,
+      zPush:.17,
+      velocityTilt:.36,
+      scalePulse:.018,
+      lag:.012
+    },
+
+    outerWire:{
+      xPush:.055,
+      yPush:.04,
+      velocityTilt:.12,
+      scalePulse:.008,
+      lag:.008
     }
   },
 
@@ -99,25 +123,28 @@ export const VISUAL_PARAMS={
       saturation:.76,
       brightness:1.34,
       baseLift:.095,
-      edgeGlow:2.25,
-      fresnelGlow:.54,
+      edgeGlow:2.15,
+      fresnelGlow:.52,
       opacity:.98
     },
 
     moire:{
       black:.008,
-      white:.96,
-      opacity:.9,
+      white:.98,
+      opacity:.94,
       frequencyA:46,
       frequencyB:53,
       radialFrequency:72,
       zebraMix:.42,
-      edgeGlow:1.18
+      edgeGlow:.72
     },
 
-    scaffold:{
-      glow:1.65,
-      whiteCore:.24
+    iridescent:{
+      opacity:.92,
+      brightness:1.18,
+      edgeGlow:1.42,
+      fresnelGlow:.62,
+      speed:.18
     }
   }
 };
