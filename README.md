@@ -229,3 +229,30 @@ generation: {
 ```
 
 Mit `randomizeEachLoad: false` bleibt die Komposition reproduzierbar.
+
+
+## Drei visuelle Ebenen
+
+Die Skulptur ist jetzt strikt in drei parametrische Ebenen getrennt:
+
+1. **Irisierendes Wireframe-Gerüst**  
+   Mathematisch über Fibonacci-Sphere-Punkte, nächste Nachbarn, innere/äußere Cage-Struktur und radiale Spokes aufgebaut. Dieser Layer trägt den stärksten Unreal-Bloom-Glow.
+
+2. **Sphärische Triangle-Polygon-Shell**  
+   Dreiecke werden sphärisch/ellipsoid um das Gerüst verteilt. Ein parametrisierter Anteil nutzt die Webcam als helle reflektierende Textur, alle übrigen Flächen tragen ein Schwarz-Weiß-Moiré/Zebra-Shader-Mapping mit irisierenden Kanten.
+
+3. **Riesige dunkle Wire-Polygone**  
+   Dieselbe Triangle-Sprache wird stark vergrößert außen im Raum wiederholt. Die Kanten sind echte 3D-Rods mit anthrazit-schwarzem, metallischem Physical-Material statt einfacher 1px-Linien.
+
+Alle drei Ebenen reagieren unterschiedlich stark und verzögert auf Webcam-Bewegung. Die Szene wird bei jedem Laden mit neuem Seed generiert.
+
+Die zentralen Werte liegen in `src/visual-config.js` unter:
+
+```js
+layers.scaffold
+layers.shell
+layers.giantWire
+reaction
+material
+bloom
+```
