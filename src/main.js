@@ -138,7 +138,10 @@ visual.renderer.setAnimationLoop(()=>{
   lastFrame=now;
   const t=clock.getElapsedTime();
 
-  pointer.lerp(isMobile?gyroTarget:targetPointer,.07);
+  pointer.lerp(
+    isMobile?gyroTarget:targetPointer,
+    isMobile?.018:.07
+  );
   state=lerpState(state,targetState,.035);
 
   const cameraMotion={
