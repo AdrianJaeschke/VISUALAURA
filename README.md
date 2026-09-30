@@ -327,3 +327,30 @@ material
 reaction
 bloom
 ```
+
+
+## Global Dither + zentrierte Komposition
+
+Das Dither liegt jetzt nicht mehr in den einzelnen Materialien, sondern als **globaler Three.js Postprocessing-Pass über der gesamten Szene**. Dadurch werden Skulptur, Case-Medien, Headlines, Bloom und Wireframe von demselben 4×4 Ordered/Bayer-Muster erfasst.
+
+Die Ebenen sind stärker überlappt und zum Zentrum hin konzentriert:
+
+- Hero Mirror größer und zentraler
+- 3 Moiré-Dreiecke näher am Hero
+- Iridescent Aura mit kleinerem Radius und geringerer Z-Streuung
+- Outer Wire als ein großes weißes glossy Triangle-Wireframe
+
+Die globalen Dither-Werte sind in der PARAMS-Konsole unter **Global Dither** regelbar.
+
+## TXT-basierte Case-Daten
+
+Jeder Ordner unter `media/` kann eine beliebige `.txt` Datei enthalten. Die erste nichtleere Zeile wird als Projektname verwendet, alle folgenden nichtleeren Zeilen als Beschreibung.
+
+Beispiel:
+
+```txt
+AUDI HOUSE OF PROGRESS
+IAA 2021
+```
+
+`tools/build-cases.py` übernimmt Titel und Beschreibung automatisch in `media/cases.json`. Beides wird ohne weitere Codeänderung auf der Website angezeigt.
