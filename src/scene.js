@@ -663,6 +663,7 @@ export function updateVisualScene(
   const {
     root,
     scaffoldGroup,scaffoldMat,
+    shellGroup,
     reflectiveMat,reflectiveTriangles,
     moireMat,moireMesh,moireSeeds,
     giantWireGroup,giantPolygons,
@@ -717,9 +718,11 @@ export function updateVisualScene(
   );
 
   const scaffoldScale=
-    1+
-    Math.sin(time*.24)*P.layers.scaffold.breathing+
-    motion*R.scaffold.motionScale;
+    state.scaffoldScale*(
+      1+
+      Math.sin(time*.24)*P.layers.scaffold.breathing+
+      motion*R.scaffold.motionScale
+    );
 
   const scaffoldS=THREE.MathUtils.lerp(
     scaffoldGroup.scale.x,
@@ -728,7 +731,24 @@ export function updateVisualScene(
   );
   scaffoldGroup.scale.setScalar(scaffoldS);
 
-  // Layer B materials.
+  // Layer B.
+  const shellScale=THREE.MathUtils.lerp(
+    shellGroup.scale.x,
+    state.shellScale,
+    .018
+  );
+  shellGroup.scale.setScalar(shellScale);
+  shellGroup.rotation.z=THREE.MathUtils.lerp(
+    shellGroup.rotation.z,
+    state.orbitBias+humanVX*.12,
+    .012
+  );
+  shellGroup.rotation.y=THREE.MathUtils.lerp(
+    shellGroup.rotation.y,
+    state.rotationBias*.025+humanX*.08,
+    .012
+  );
+
   reflectiveMat.uniforms.uTime.value=time;
   reflectiveMat.uniforms.uMotion.value=motion;
   reflectiveMat.uniforms.uGlitch.value=state.glitch+motion*.13;
@@ -853,8 +873,18 @@ export function updateVisualScene(
     poly.scale.setScalar(s);
   });
 
-  giantWireGroup.rotation.y+=.00035;
-  giantWireGroup.rotation.x=Math.sin(time*.045)*.035;
+  const giantGroupScale=THREE.MathUtils.lerp(
+    giantWireGroup.scale.x,
+    state.giantScale,
+    .01
+  );
+  giantWireGroup.scale.setScalar(giantGroupScale);
+  giantWireGroup.rotation.y=THREE.MathUtils.lerp(
+    giantWireGroup.rotation.y,
+    state.orbitBias*.55+time*.006,
+    .008
+  );
+  giantWireGroup.rotation.x=Math.sin(time*.045)*.035+state.tiltBias*.018;
 
   // Light motion stays subtle.
   key.position.x=THREE.MathUtils.lerp(
@@ -874,8 +904,11 @@ export function updateVisualScene(
   cyan.intensity=7+state.intensity*3+motion*3;
   magenta.intensity=6+state.glitch*2+motion*2;
 
+  bloomPass.radius=P.bloom.radius;
+  bloomPass.threshold=P.bloom.threshold;
   bloomPass.strength=
     P.bloom.strength+
+    state.bloomBias+
     motion*P.bloom.motionBoost+
     state.intensity*.05;
 }
