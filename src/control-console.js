@@ -132,7 +132,6 @@ export function createControlConsole({visual,onStructuralChange}={}){
   panel.innerHTML=
     '<div class="va-console__header">'+
       '<div><strong>VISUAL AURA</strong><span>AMORPHOUS TRIANGLE RIBBON</span></div>'+
-      '<button class="va-console__collapse" type="button" aria-label="Konsole ein-/ausklappen">−</button>'+
     '</div>'+
     '<div class="va-console__body"></div>'+
     '<div class="va-console__footer">'+
@@ -256,11 +255,6 @@ export function createControlConsole({visual,onStructuralChange}={}){
     localStorage.removeItem("visualaura.control-console.v2");
     localStorage.removeItem("visualaura.control-console.v1");
     location.reload();
-  });
-
-  panel.querySelector(".va-console__collapse").addEventListener("click",e=>{
-    panel.classList.toggle("collapsed");
-    e.currentTarget.textContent=panel.classList.contains("collapsed")?"+":"−";
   });
 
   document.body.appendChild(panel);
