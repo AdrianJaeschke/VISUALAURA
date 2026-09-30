@@ -152,6 +152,10 @@ function createBandMaterial(){
       uFresnelGlow:{value:P.material.band.fresnelGlow},
       uWhiteSpecular:{value:P.material.band.whiteSpecular},
       uSpeed:{value:P.material.band.speed},
+      uPearlStrength:{value:P.material.band.pearlStrength},
+      uFilmThickness:{value:P.material.band.filmThickness},
+      uWhiteness:{value:P.material.band.whiteness},
+      uSpectralSaturation:{value:P.material.band.spectralSaturation},
       uDepth:{value:1},
       uCaseTwist:{value:0},
       uIridescence:{value:1}
@@ -184,11 +188,11 @@ function createBandMaterial(){
         p.xy=mat2(ct,-st,st,ct)*p.xy;
 
         float wave=
-          sin(phase*31.4159+uTime*.42)*
-          (.018+uMotion*.075);
+          sin(phase*31.4159+uTime*.34)*
+          (.012+uMotion*.055);
 
         p+=normal*wave;
-        p.z+=(p.x*uHuman.x+p.y*uHuman.y)*.018;
+        p.z+=(p.x*uHuman.x+p.y*uHuman.y)*.014;
 
         vec4 world=modelMatrix*vec4(p,1.);
         vWorld=world.xyz;
@@ -199,6 +203,7 @@ function createBandMaterial(){
     fragmentShader:`
       uniform float uTime,uMotion,uOpacity,uBrightness,uEdgeGlow;
       uniform float uFresnelGlow,uWhiteSpecular,uSpeed,uIridescence;
+      uniform float uPearlStrength,uFilmThickness,uWhiteness,uSpectralSaturation;
       uniform vec3 uA,uB,uC;
 
       varying vec3 vBary;
@@ -209,39 +214,85 @@ function createBandMaterial(){
 
       float edgeFactor(){
         vec3 d=fwidth(vBary);
-        vec3 a3=smoothstep(vec3(0.),d*1.15,vBary);
+        vec3 a3=smoothstep(vec3(0.),d*1.25,vBary);
         return 1.-min(min(a3.x,a3.y),a3.z);
+      }
+
+      float luma(vec3 c){
+        return dot(c,vec3(.299,.587,.114));
+      }
+
+      vec3 thinFilmPearl(float cosTheta,float phaseOffset){
+        float grazing=1.-clamp(cosTheta,0.,1.);
+        float optical=uFilmThickness*(.72+grazing*2.45);
+        vec3 wavelengths=vec3(.64,.53,.46);
+
+        vec3 phase=
+          optical*10.8/wavelengths+
+          phaseOffset+
+          vec3(.0,.72,1.46);
+
+        vec3 first=.5+.5*cos(phase);
+        vec3 second=.5+.5*cos(phase*.58+1.15);
+        vec3 spectral=mix(first,second,.34);
+
+        float y=luma(spectral);
+        return mix(vec3(y),spectral,uSpectralSaturation);
       }
 
       void main(){
         vec3 N=normalize(vNormalW);
         vec3 V=normalize(cameraPosition-vWorld);
-        float facing=max(dot(N,V),0.);
-        float fres=pow(1.-facing,1.65);
+        float cosTheta=abs(dot(N,V));
+        float fres=pow(1.-cosTheta,1.38);
         float edge=edgeFactor();
 
-        float spectral=
-          fres*1.5+
-          vPhase*1.8+
-          sin(vWorld.x*.46+vWorld.y*.38+uTime*uSpeed)*.18;
+        float phaseOffset=
+          vPhase*2.2+
+          sin(vWorld.x*.38+vWorld.y*.31+uTime*uSpeed)*.10;
 
-        vec3 prism=.5+.5*cos(
-          6.28318*(spectral+vec3(0.,.333,.667))
+        vec3 pearl=thinFilmPearl(cosTheta,phaseOffset);
+
+        // Almost-white translucent mother-of-pearl at normal incidence.
+        vec3 ivory=mix(
+          vec3(.88,.91,.94),
+          vec3(1.0,.995,.985),
+          uWhiteness
         );
 
-        vec3 palette=mix(uA,uB,prism.r);
-        palette=mix(palette,uC,prism.b*.48);
-        palette*=uIridescence;
+        float pearlMask=
+          clamp(
+            (.10+fres*.78+edge*.18)*
+            uPearlStrength*
+            uIridescence,
+            0.,
+            1.
+          );
 
-        float facetLight=.42+vFacet*.74;
-        vec3 col=palette*facetLight*(.38+fres*uFresnelGlow);
-        col+=palette*edge*uEdgeGlow;
-        col+=vec3(1.)*pow(facing,8.)*uWhiteSpecular;
-        col+=vec3(1.)*edge*.10;
-        col*=uBrightness+uMotion*.13;
+        vec3 col=mix(ivory,pearl,pearlMask*.62);
 
-        float alpha=uOpacity*(.58+vFacet*.42);
-        gl_FragColor=vec4(col,alpha);
+        // Facets stay softly white rather than turning into neon patches.
+        float facetShade=.88+vFacet*.16;
+        col*=facetShade;
+
+        // Case palette only whispers into the grazing interference.
+        vec3 caseTint=mix(uA,uB,.5+.5*sin(vPhase*6.28318));
+        caseTint=mix(caseTint,uC,.24);
+        col=mix(col,col*caseTint,pearlMask*.07);
+
+        float whiteSpec=pow(max(cosTheta,0.),18.)*uWhiteSpecular;
+        col+=vec3(1.)*whiteSpec;
+        col+=vec3(1.)*edge*uEdgeGlow*.28;
+        col+=pearl*fres*uFresnelGlow*.22;
+
+        col*=uBrightness+uMotion*.035;
+
+        // Transparent white in the front, denser pearl at grazing angles.
+        float alpha=
+          uOpacity*
+          (.62+fres*.32+edge*.06);
+
+        gl_FragColor=vec4(col,clamp(alpha,0.,.94));
       }
     `
   });
@@ -938,6 +989,10 @@ export async function createVisualScene(stage,cases,videoTexture){
     bandMaterial.uniforms.uFresnelGlow.value=P.material.band.fresnelGlow;
     bandMaterial.uniforms.uWhiteSpecular.value=P.material.band.whiteSpecular;
     bandMaterial.uniforms.uSpeed.value=P.material.band.speed;
+    bandMaterial.uniforms.uPearlStrength.value=P.material.band.pearlStrength;
+    bandMaterial.uniforms.uFilmThickness.value=P.material.band.filmThickness;
+    bandMaterial.uniforms.uWhiteness.value=P.material.band.whiteness;
+    bandMaterial.uniforms.uSpectralSaturation.value=P.material.band.spectralSaturation;
 
     bandWireMaterial.uniforms.uGlow.value=P.material.wire.glow;
     bandWireMaterial.uniforms.uOpacity.value=Math.min(1,P.material.wire.opacity+.18);
