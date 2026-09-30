@@ -19,39 +19,80 @@ function random01(seed){
   return Math.abs(x-Math.floor(x));
 }
 
-function textTexture(text,palette){
+function wrapCanvasText(ctx,text,maxWidth,maxLines=3){
+  const words=String(text||"").trim().split(/\s+/).filter(Boolean);
+  if(!words.length)return [];
+
+  const lines=[];
+  let line="";
+
+  for(const word of words){
+    const test=line?line+" "+word:word;
+    if(ctx.measureText(test).width<=maxWidth||!line){
+      line=test;
+      continue;
+    }
+
+    lines.push(line);
+    line=word;
+
+    if(lines.length>=maxLines-1)break;
+  }
+
+  if(line&&lines.length<maxLines)lines.push(line);
+
+  if(words.length&&lines.length===maxLines){
+    const last=lines[maxLines-1];
+    if(last.length>0&&!last.endsWith("…"))lines[maxLines-1]=last.replace(/[.,;:!?]?$/,"")+"…";
+  }
+
+  return lines;
+}
+
+function textTexture(text,description,palette){
   const canvas=document.createElement("canvas");
   canvas.width=1600;
-  canvas.height=420;
+  canvas.height=480;
+
   const ctx=canvas.getContext("2d");
   const a=palette?.[0]||"#ffffff";
   const b=palette?.[1]||"#74f7ff";
 
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
   const grad=ctx.createLinearGradient(0,0,canvas.width,0);
   grad.addColorStop(0,a);
   grad.addColorStop(.45,"#ffffff");
   grad.addColorStop(1,b);
 
-  ctx.font='800 168px "Turret Road", Arial, sans-serif';
-  ctx.textBaseline="middle";
   ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.font='800 154px "Turret Road", Arial, sans-serif';
   ctx.fillStyle=grad;
   ctx.shadowColor=a;
-  ctx.shadowBlur=28;
-  ctx.fillText(String(text||"CASE").toUpperCase(),canvas.width/2,205);
+  ctx.shadowBlur=26;
+  ctx.fillText(String(text||"CASE").toUpperCase(),canvas.width/2,182);
 
   ctx.shadowBlur=0;
-  ctx.font='500 34px "Turret Road", Arial, sans-serif';
-  ctx.fillStyle="rgba(255,255,255,.58)";
-  ctx.fillText("CASE / VISUAL AURA",canvas.width/2,338);
+  ctx.font='500 35px "Turret Road", Arial, sans-serif';
+  ctx.fillStyle="rgba(255,255,255,.72)";
+
+  const descriptionLines=wrapCanvasText(ctx,description,1180,3);
+  descriptionLines.forEach((line,i)=>{
+    ctx.fillText(line,canvas.width/2,326+i*43);
+  });
+
+  if(!descriptionLines.length){
+    ctx.font='500 28px "Turret Road", Arial, sans-serif';
+    ctx.fillStyle="rgba(255,255,255,.42)";
+    ctx.fillText("CASE / VISUAL AURA",canvas.width/2,345);
+  }
 
   const texture=new THREE.CanvasTexture(canvas);
   texture.colorSpace=THREE.SRGBColorSpace;
   texture.minFilter=THREE.LinearFilter;
   return texture;
 }
-
 function placeholderTexture(caseData,index){
   const canvas=document.createElement("canvas");
   canvas.width=960;
@@ -243,7 +284,7 @@ export function createCasePresentation(scene,camera){
       videoState=createVideoPlane(media.video,group);
     }
 
-    const titleTexture=textTexture(caseData.title,palette);
+    const titleTexture=textTexture(caseData.title,caseData.description,palette);
     const titleMaterial=new THREE.MeshBasicMaterial({
       map:titleTexture,
       transparent:true,
