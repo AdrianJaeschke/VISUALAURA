@@ -1,0 +1,6 @@
+export const CASES = [
+  {id:"signal-garden",title:"Signal Garden",year:2026,location:{city:"Munich",country:"DE",lat:48.137,lng:11.575},disciplines:["Spatial","Digital"],tags:["Realtime","Data","Light"],palette:["#74f7ff","#7b69ff","#ff4ecf"],intensity:.84,complexity:.78},
+  {id:"afterimage",title:"Afterimage",year:2025,location:{city:"Berlin",country:"DE",lat:52.52,lng:13.405},disciplines:["Identity","Motion"],tags:["Glitch","Type","Film"],palette:["#ff3c9f","#8d6cff","#f5f7ff"],intensity:.72,complexity:.92},
+  {id:"field-notes",title:"Field Notes",year:2024,location:{city:"Zurich",country:"CH",lat:47.3769,lng:8.5417},disciplines:["Research","Experience"],tags:["Archive","Mapping","Editorial"],palette:["#7dffb2","#72a7ff","#f8efc0"],intensity:.58,complexity:.64},
+  {id:"latent-city",title:"Latent City",year:2026,location:{city:"Vienna",country:"AT",lat:48.2082,lng:16.3738},disciplines:["AI","Installation"],tags:["Generative","Realtime","Spatial"],palette:["#00f5ff","#ff7a00","#f800ff"],intensity:.96,complexity:.88}
+];
