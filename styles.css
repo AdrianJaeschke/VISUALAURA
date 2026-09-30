@@ -6,9 +6,6 @@
 }
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--fg)}
 body{font-family:var(--font-ui)}
-#bg-video{position:fixed;inset:-8%;width:116%;height:116%;object-fit:cover;transform:scaleX(-1) scale(1.08);opacity:0;
-  filter:blur(95px) saturate(.8) contrast(.75) brightness(.38);transition:opacity .6s ease;pointer-events:none;z-index:0}
-body.camera-live #bg-video{opacity:.10}
 #stage{position:fixed;inset:0;z-index:1}canvas{display:block;width:100%;height:100%}
 .vignette{position:fixed;inset:0;z-index:2;pointer-events:none;background:
   radial-gradient(circle at 50% 50%,transparent 27%,rgba(0,0,0,.2) 61%,rgba(0,0,0,.84) 100%),
