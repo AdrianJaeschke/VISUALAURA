@@ -1,17 +1,23 @@
 import * as THREE from "three";
-import {VISUAL_PARAMS as P} from "./visual-config.js";
+import { PARAMS } from "./params.js";
+
+const expAlpha=(dt,ms)=>1-Math.exp(-Math.max(dt,1)/Math.max(ms,1));
 
 export function createCameraInput(video,isMobile){
-  const size=P.camera.analysisSize;
   const canvas=document.createElement("canvas");
-  canvas.width=size;
-  canvas.height=size;
+  canvas.width=256;
+  canvas.height=256;
 
   const ctx=canvas.getContext("2d",{willReadFrequently:true});
   const texture=new THREE.CanvasTexture(canvas);
   texture.colorSpace=THREE.SRGBColorSpace;
   texture.minFilter=THREE.LinearFilter;
   texture.magFilter=THREE.LinearFilter;
+
+  const history=[];
+  let lastSample=0;
+  let lastSmooth=performance.now();
+  let delayedPrev={x:0,y:0};
 
   const analysis={
     motion:0,
@@ -23,16 +29,11 @@ export function createCameraInput(video,isMobile){
     centroidY:0,
     presence:0,
     r:0,g:0,b:0,
+    rawMotion:0,
+    prev:null,
     active:false,
     stream:null
   };
-
-  let prevPixels=null;
-  let lastCapture=0;
-  let lastUpdate=performance.now();
-  let rawCentroidX=0;
-  let rawCentroidY=0;
-  const queue=[];
 
   async function start(){
     const stream=await navigator.mediaDevices.getUserMedia({
@@ -51,126 +52,133 @@ export function createCameraInput(video,isMobile){
     document.body.classList.add("camera-live");
   }
 
-  function capture(now){
+  function sample(now){
     ctx.save();
-    ctx.clearRect(0,0,size,size);
+    ctx.clearRect(0,0,256,256);
     ctx.scale(-1,1);
-    ctx.drawImage(video,-size,0,size,size);
+    ctx.drawImage(video,-256,0,256,256);
     ctx.restore();
 
-    const img=ctx.getImageData(0,0,size,size);
+    const img=ctx.getImageData(0,0,256,256);
     const d=img.data;
 
     let r=0,g=0,b=0,diff=0,samples=0;
     let weightedX=0,weightedY=0,weightTotal=0;
     let brightnessTotal=0;
 
-    const step=P.camera.sampleStep;
+    const step=12;
 
-    for(let y=0;y<size;y+=step){
-      for(let x=0;x<size;x+=step){
-        const i=(y*size+x)*4;
+    for(let y=0;y<256;y+=step){
+      for(let x=0;x<256;x+=step){
+        const i=(y*256+x)*4;
         r+=d[i];g+=d[i+1];b+=d[i+2];
 
-        const brightness=(d[i]+d[i+1]+d[i+2])/3/255;
+        const brightness=(d[i]+d[i+1]+d[i+2])/(255*3);
         brightnessTotal+=brightness;
 
-        if(prevPixels){
+        if(analysis.prev){
           const delta=(
-            Math.abs(d[i]-prevPixels[i])+
-            Math.abs(d[i+1]-prevPixels[i+1])+
-            Math.abs(d[i+2]-prevPixels[i+2])
+            Math.abs(d[i]-analysis.prev[i])+
+            Math.abs(d[i+1]-analysis.prev[i+1])+
+            Math.abs(d[i+2]-analysis.prev[i+2])
           )/(255*3);
 
           diff+=delta;
-          const w=Math.max(0,delta-P.camera.motionThreshold);
 
-          if(w>0){
-            const nx=x/(size-1)*2-1;
-            const ny=-(y/(size-1)*2-1);
-            weightedX+=nx*w;
-            weightedY+=ny*w;
-            weightTotal+=w;
+          const motionWeight=Math.max(0,delta-PARAMS.camera.motionThreshold);
+          if(motionWeight>0){
+            const nx=x/255*2-1;
+            const ny=-(y/255*2-1);
+            weightedX+=nx*motionWeight;
+            weightedY+=ny*motionWeight;
+            weightTotal+=motionWeight;
           }
         }
-
         samples++;
       }
     }
 
-    const motion=prevPixels
-      ? THREE.MathUtils.clamp(diff/samples*P.camera.motionGain,0,1)
+    const rawMotion=analysis.prev
+      ? THREE.MathUtils.clamp((diff/samples)*PARAMS.camera.motionGain,0,1)
       : 0;
 
-    const detectedX=weightTotal>.001?weightedX/weightTotal:rawCentroidX;
-    const detectedY=weightTotal>.001?weightedY/weightTotal:rawCentroidY;
+    const cx=weightTotal>PARAMS.camera.centroidDeadZone
+      ? weightedX/weightTotal
+      : history.length?history[history.length-1].x:0;
 
-    const nextX=THREE.MathUtils.lerp(rawCentroidX,detectedX,P.camera.centroidResponse);
-    const nextY=THREE.MathUtils.lerp(rawCentroidY,detectedY,P.camera.centroidResponse);
+    const cy=weightTotal>PARAMS.camera.centroidDeadZone
+      ? weightedY/weightTotal
+      : history.length?history[history.length-1].y:0;
 
-    const velocityX=THREE.MathUtils.clamp((nextX-rawCentroidX)*motion,-.16,.16);
-    const velocityY=THREE.MathUtils.clamp((nextY-rawCentroidY)*motion,-.16,.16);
-
-    rawCentroidX=nextX;
-    rawCentroidY=nextY;
-
-    queue.push({
+    history.push({
       t:now,
-      motion,
-      centroidX:nextX,
-      centroidY:nextY,
-      motionX:nextX*motion,
-      motionY:nextY*motion,
-      velocityX,
-      velocityY,
-      presence:THREE.MathUtils.clamp(brightnessTotal/samples*1.6,0,1),
+      x:THREE.MathUtils.clamp(cx,-1,1),
+      y:THREE.MathUtils.clamp(cy,-1,1),
+      motion:rawMotion,
+      presence:THREE.MathUtils.clamp(brightnessTotal/samples*1.55,0,1),
       r:r/samples/255,
       g:g/samples/255,
       b:b/samples/255
     });
 
-    while(queue.length>P.camera.maxQueue)queue.shift();
+    while(history.length>80||history[0]?.t<now-2200)history.shift();
 
-    prevPixels=new Uint8ClampedArray(d);
+    analysis.prev=new Uint8ClampedArray(d);
     texture.needsUpdate=true;
   }
 
-  function update(now=performance.now()){
+  function update(){
     if(!analysis.active||video.readyState<2)return;
 
-    if(now-lastCapture>=P.camera.sampleIntervalMs){
-      capture(now);
-      lastCapture=now;
+    const now=performance.now();
+
+    if(now-lastSample>=PARAMS.camera.sampleIntervalMs){
+      lastSample=now;
+      sample(now);
     }
 
-    const delayedTime=now-P.camera.delayMs;
-    let target=null;
+    if(!history.length)return;
 
-    for(let i=queue.length-1;i>=0;i--){
-      if(queue[i].t<=delayedTime){
-        target=queue[i];
-        break;
-      }
+    const delayedAt=now-PARAMS.camera.delayMs;
+    let target=history[0];
+    for(const item of history){
+      if(item.t<=delayedAt)target=item;
+      else break;
     }
 
-    if(!target&&queue.length)target=queue[0];
-    if(!target)return;
+    const dt=now-lastSmooth;
+    lastSmooth=now;
 
-    const dt=Math.max(1,now-lastUpdate);
-    lastUpdate=now;
-    const alpha=1-Math.exp(-dt/P.camera.responseMs);
+    const a=expAlpha(dt,PARAMS.camera.smoothingMs);
+    const av=expAlpha(dt,PARAMS.camera.velocitySmoothingMs);
 
-    analysis.motion=THREE.MathUtils.lerp(analysis.motion,target.motion,alpha);
-    analysis.centroidX=THREE.MathUtils.lerp(analysis.centroidX,target.centroidX,alpha);
-    analysis.centroidY=THREE.MathUtils.lerp(analysis.centroidY,target.centroidY,alpha);
-    analysis.motionX=THREE.MathUtils.lerp(analysis.motionX,target.motionX,alpha);
-    analysis.motionY=THREE.MathUtils.lerp(analysis.motionY,target.motionY,alpha);
-    analysis.velocityX=THREE.MathUtils.lerp(analysis.velocityX,target.velocityX,alpha);
-    analysis.velocityY=THREE.MathUtils.lerp(analysis.velocityY,target.velocityY,alpha);
-    analysis.presence=THREE.MathUtils.lerp(analysis.presence,target.presence,alpha);
-    analysis.r=THREE.MathUtils.lerp(analysis.r,target.r,alpha);
-    analysis.g=THREE.MathUtils.lerp(analysis.g,target.g,alpha);
-    analysis.b=THREE.MathUtils.lerp(analysis.b,target.b,alpha);
+    const vx=target.x-delayedPrev.x;
+    const vy=target.y-delayedPrev.y;
+    delayedPrev={x:target.x,y:target.y};
+
+    analysis.centroidX=THREE.MathUtils.lerp(analysis.centroidX,target.x,a);
+    analysis.centroidY=THREE.MathUtils.lerp(analysis.centroidY,target.y,a);
+    analysis.motion=THREE.MathUtils.lerp(analysis.motion,target.motion,a*.72);
+    analysis.rawMotion=target.motion;
+
+    analysis.velocityX=THREE.MathUtils.lerp(analysis.velocityX,vx,av*.45);
+    analysis.velocityY=THREE.MathUtils.lerp(analysis.velocityY,vy,av*.45);
+
+    analysis.motionX=THREE.MathUtils.lerp(
+      analysis.motionX,
+      analysis.centroidX*analysis.motion,
+      a*.7
+    );
+    analysis.motionY=THREE.MathUtils.lerp(
+      analysis.motionY,
+      analysis.centroidY*analysis.motion,
+      a*.7
+    );
+
+    analysis.presence=THREE.MathUtils.lerp(analysis.presence,target.presence,a*.45);
+    analysis.r=THREE.MathUtils.lerp(analysis.r,target.r,a*.4);
+    analysis.g=THREE.MathUtils.lerp(analysis.g,target.g,a*.4);
+    analysis.b=THREE.MathUtils.lerp(analysis.b,target.b,a*.4);
   }
 
   return {texture,analysis,start,update};
