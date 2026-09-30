@@ -1,236 +1,736 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magic Zebra Shield - Gyro & Wire</title>
-    <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
-        #ui {
-            position: fixed; top: 20px; left: 20px; color: #00f0ff; 
-            font-family: monospace; font-size: 11px; z-index: 100; pointer-events: none;
-        }
-        #overlay {
-            position: fixed; inset: 0; background: #000;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000;
-            color: #00f0ff; font-family: monospace;
-        }
-        .btn-container { display: flex; gap: 15px; margin-top: 20px; }
-        button {
-            padding: 15px 25px; background: rgba(0,0,0,0.6); border: 1px solid #00f0ff;
-            color: #00f0ff; cursor: pointer; font-family: monospace; text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        button:hover { background: rgba(0,240,255,0.2); }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#050507" />
+  <title>VISUAL AURA</title>
+  <style>
+    :root {
+      --bg: #050507;
+      --fg: #f5f7ff;
+      --muted: rgba(245,247,255,.58);
+      --line: rgba(255,255,255,.16);
+      --cyan: #77f7ff;
+      --pink: #ff4ecf;
+      --violet: #786cff;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--fg); }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+    #camera-feed {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(1.25) contrast(1.08) brightness(.58);
+      transform: scaleX(-1);
+      opacity: 0;
+      transition: opacity .6s ease;
+    }
+
+    body.camera-live #camera-feed { opacity: .34; }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+    }
+
+    canvas { display: block; width: 100%; height: 100%; }
+
+    .vignette {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 50% 50%, transparent 32%, rgba(0,0,0,.16) 62%, rgba(0,0,0,.8) 100%),
+        linear-gradient(to bottom, rgba(0,0,0,.22), transparent 22%, transparent 76%, rgba(0,0,0,.38));
+      mix-blend-mode: multiply;
+    }
+
+    .hud {
+      position: fixed;
+      z-index: 10;
+      inset: 0;
+      pointer-events: none;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-rows: auto 1fr auto;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .brand {
+      align-self: start;
+      font-size: 11px;
+      line-height: 1.35;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .brand strong { display: block; color: var(--fg); font-size: 15px; letter-spacing: .12em; }
+
+    .mode {
+      justify-self: end;
+      font-size: 10px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 10px;
+      backdrop-filter: blur(18px);
+      background: rgba(0,0,0,.18);
+    }
+
+    .case-meta {
+      align-self: end;
+      max-width: 460px;
+      pointer-events: auto;
+      display: grid;
+      gap: 8px;
+    }
+
+    .case-kicker {
+      font-size: 10px;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .case-title {
+      margin: 0;
+      font-size: clamp(30px, 5vw, 68px);
+      font-weight: 500;
+      line-height: .92;
+      letter-spacing: -.045em;
+    }
+
+    .case-detail {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .case-detail span::before { content: "•"; margin-right: 12px; color: var(--cyan); }
+    .case-detail span:first-child::before { content: ""; margin: 0; }
+
+    .help {
+      align-self: end;
+      justify-self: end;
+      text-align: right;
+      max-width: 260px;
+      font-size: 10px;
+      line-height: 1.55;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    #intro {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(2,2,4,.9);
+      backdrop-filter: blur(18px);
+      transition: opacity .45s ease, visibility .45s ease;
+    }
+
+    #intro.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    .panel {
+      width: min(640px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px;
+      background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.015));
+      box-shadow: 0 30px 100px rgba(0,0,0,.45);
+    }
+
+    .panel h1 {
+      margin: 0 0 12px;
+      font-size: clamp(42px, 8vw, 90px);
+      font-weight: 500;
+      letter-spacing: -.06em;
+      line-height: .84;
+    }
+
+    .panel p {
+      margin: 20px 0 24px;
+      max-width: 48ch;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      color: var(--fg);
+      border-radius: 999px;
+      padding: 12px 16px;
+      font: inherit;
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    button.primary {
+      color: #050507;
+      background: var(--fg);
+      border-color: var(--fg);
+    }
+
+    button:hover { transform: translateY(-1px); }
+
+    .case-dots {
+      position: fixed;
+      z-index: 12;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .case-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      border: 0;
+      padding: 0;
+      background: rgba(255,255,255,.28);
+      transition: width .25s ease, background .25s ease;
+    }
+
+    .case-dot.active { width: 28px; background: #fff; }
+
+    @media (max-width: 760px) {
+      .hud { padding: 14px; }
+      .case-title { font-size: clamp(36px, 13vw, 64px); }
+      .help { display: none; }
+      .case-meta { max-width: 85vw; }
+      .panel { border-radius: 20px; padding: 22px; }
+      .brand strong { font-size: 13px; }
+      .mode { font-size: 9px; }
+    }
+  </style>
 </head>
 <body>
+  <video id="camera-feed" autoplay playsinline muted></video>
+  <div id="stage"></div>
+  <div class="vignette"></div>
 
-<div id="ui">SYSTEM: ACTIVE<br>MODE: <span id="mode">TOUCH</span></div>
+  <div class="hud">
+    <div class="brand"><strong>VISUAL AURA</strong>Portfolio as responsive data sculpture</div>
+    <div class="mode" id="mode-label">idle</div>
 
-<div id="overlay">
-    <h2 style="letter-spacing: 5px;">SHIELD INTERFACE</h2>
-    <div class="btn-container">
-        <button id="btn-touch">Start Touch</button>
-        <button id="btn-gyro">Start Gyro</button>
+    <div class="case-meta">
+      <div class="case-kicker" id="case-kicker">Case 01</div>
+      <h2 class="case-title" id="case-title">Signal Garden</h2>
+      <div class="case-detail" id="case-detail"></div>
     </div>
-</div>
 
-<script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-</script>
+    <div class="help" id="help-copy">Mouse bewegen · Scrollen für Cases · Kamera speist Reflexionen und Bewegung</div>
+  </div>
 
-<script type="module">
+  <div class="case-dots" id="case-dots"></div>
+
+  <div id="intro">
+    <div class="panel">
+      <h1>VISUAL<br>AURA</h1>
+      <p>
+        Eine generative Portfolio-Installation. Case-Daten verändern Geometrie, Farbe und Glitch-Verhalten.
+        Auf Desktop wird die Webcam zum visuellen Input. Auf Mobile wird die Kamera zur räumlichen Bühne.
+      </p>
+      <div class="actions">
+        <button class="primary" id="start-camera">Kamera starten</button>
+        <button id="start-no-camera">Ohne Kamera</button>
+        <button id="start-ar" hidden>AR starten</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+      }
+    }
+  </script>
+
+  <script type="module">
     import * as THREE from 'three';
 
-    const CONFIG = {
-        radius: 2.5,
-        ghostRadius: 2.85,
-        detail: 2,                // Low Poly für sichtbare Dreiecke
-        stripeDensity: 11.0,      // Zebra-Streifen Dichte
-        shieldSize: 0.55,
-        shieldSharpness: 0.2,     // Smoother Übergang der Maske
-        lerpFactor: 0.1
+    const isMobile = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    const CASES = [
+      {
+        id: "signal-garden",
+        title: "Signal Garden",
+        year: 2026,
+        location: { city: "Munich", country: "DE", lat: 48.137, lng: 11.575 },
+        disciplines: ["Spatial", "Digital"],
+        tags: ["Realtime", "Data", "Light"],
+        palette: ["#64f4ff", "#765cff", "#ff4ecf"],
+        intensity: .82,
+        complexity: .74
+      },
+      {
+        id: "afterimage",
+        title: "Afterimage",
+        year: 2025,
+        location: { city: "Berlin", country: "DE", lat: 52.52, lng: 13.405 },
+        disciplines: ["Identity", "Motion"],
+        tags: ["Glitch", "Type", "Film"],
+        palette: ["#ff3b9a", "#8e6cff", "#f6f6f6"],
+        intensity: .7,
+        complexity: .9
+      },
+      {
+        id: "field-notes",
+        title: "Field Notes",
+        year: 2024,
+        location: { city: "Zurich", country: "CH", lat: 47.3769, lng: 8.5417 },
+        disciplines: ["Research", "Experience"],
+        tags: ["Archive", "Mapping", "Editorial"],
+        palette: ["#7dffb2", "#72a7ff", "#f8efc0"],
+        intensity: .58,
+        complexity: .62
+      },
+      {
+        id: "latent-city",
+        title: "Latent City",
+        year: 2026,
+        location: { city: "Vienna", country: "AT", lat: 48.2082, lng: 16.3738 },
+        disciplines: ["AI", "Installation"],
+        tags: ["Generative", "Realtime", "Spatial"],
+        palette: ["#00f5ff", "#ff7a00", "#f800ff"],
+        intensity: .95,
+        complexity: .86
+      }
+    ];
+
+    const interpreter = (entry) => {
+      const yearMin = Math.min(...CASES.map(c => c.year));
+      const yearMax = Math.max(...CASES.map(c => c.year));
+      const yearNorm = yearMax === yearMin ? .5 : (entry.year - yearMin) / (yearMax - yearMin);
+      const geoAngle = THREE.MathUtils.mapLinear(entry.location.lng, -180, 180, -Math.PI, Math.PI);
+      const geoTilt = THREE.MathUtils.mapLinear(entry.location.lat, -90, 90, -.75, .75);
+
+      return {
+        morph: THREE.MathUtils.lerp(.18, .9, yearNorm),
+        distortion: .35 + entry.intensity * .75,
+        density: .4 + entry.complexity * .9,
+        glitch: .12 + (entry.tags.includes("Glitch") ? .75 : entry.complexity * .2),
+        rotationBias: geoAngle,
+        tiltBias: geoTilt,
+        palette: entry.palette.map(c => new THREE.Color(c))
+      };
     };
+
+    const stage = document.getElementById('stage');
+    const cameraFeed = document.getElementById('camera-feed');
+    const modeLabel = document.getElementById('mode-label');
+    const caseTitle = document.getElementById('case-title');
+    const caseKicker = document.getElementById('case-kicker');
+    const caseDetail = document.getElementById('case-detail');
+    const helpCopy = document.getElementById('help-copy');
+    const intro = document.getElementById('intro');
+    const arButton = document.getElementById('start-ar');
+    const dotsRoot = document.getElementById('case-dots');
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 7;
+    scene.fog = new THREE.FogExp2(0x050507, .055);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    document.body.appendChild(renderer.domElement);
+    const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 100);
+    camera.position.set(0, 0, 7.3);
 
-    let targetInput = new THREE.Vector2(0, 0);
-    let currentInput = new THREE.Vector2(0, 0);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.22;
+    renderer.xr.enabled = true;
+    stage.appendChild(renderer.domElement);
 
-    // --- SHADER SHARED VERTEX ---
-    const sharedVert = `
-        varying vec3 vNormal;
-        varying vec3 vLocalPos;
-        varying vec2 vScreenPos;
-        void main() {
-            vNormal = normalize(normalMatrix * normal);
-            vLocalPos = position;
-            vec4 pPos = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            vScreenPos = pPos.xy / pPos.w;
-            gl_Position = pPos;
-        }
-    `;
+    const envCanvas = document.createElement('canvas');
+    envCanvas.width = 512;
+    envCanvas.height = 512;
+    const envCtx = envCanvas.getContext('2d', { willReadFrequently: true });
+    const cameraTexture = new THREE.CanvasTexture(envCanvas);
+    cameraTexture.colorSpace = THREE.SRGBColorSpace;
+    cameraTexture.wrapS = cameraTexture.wrapT = THREE.MirroredRepeatWrapping;
 
-    // --- INNER ZEBRA SHADER ---
-    const zebraMat = new THREE.ShaderMaterial({
-        uniforms: { uTime: { value: 0 } },
-        vertexShader: sharedVert,
-        fragmentShader: `
-            varying vec3 vNormal;
-            varying vec3 vLocalPos;
-            uniform float uTime;
-            void main() {
-                // Zebra-Muster basierend auf lokaler Y-Achse
-                float pattern = sin(vLocalPos.y * ${CONFIG.stripeDensity.toFixed(1)} + uTime * 3.0);
-                float zebra = step(0.0, pattern);
-                
-                // Flat Shading Simulation
-                float light = dot(vNormal, vec3(0.5, 1.0, 0.2)) * 0.5 + 0.5;
-                vec3 col = mix(vec3(0.05), vec3(1.0), zebra) * light;
-                
-                gl_FragColor = vec4(col, 1.0);
-            }
-        `
+    const root = new THREE.Group();
+    scene.add(root);
+
+    const lowPoly = new THREE.IcosahedronGeometry(2.22, 2);
+    lowPoly.scale(1.35, .95, 1.0);
+    lowPoly.rotateZ(.25);
+
+    const mirrorMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x08080b,
+      metalness: .96,
+      roughness: .14,
+      transmission: 0,
+      clearcoat: 1,
+      clearcoatRoughness: .12,
+      side: THREE.DoubleSide,
+      envMapIntensity: 1.8,
+      flatShading: true
     });
 
-    // --- OUTER MAGIC SHIELD SHADER ---
-    const shieldMat = new THREE.ShaderMaterial({
-        uniforms: {
-            uTime: { value: 0 },
-            uMouse: { value: new THREE.Vector2(0, 0) },
-            uAspect: { value: window.innerWidth / window.innerHeight }
-        },
+    mirrorMaterial.onBeforeCompile = shader => {
+      shader.uniforms.uTime = { value: 0 };
+      shader.uniforms.uMorph = { value: .5 };
+      shader.uniforms.uPointer = { value: new THREE.Vector2() };
+      mirrorMaterial.userData.shader = shader;
+
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', `#include <common>
+          uniform float uTime;
+          uniform float uMorph;
+          uniform vec2 uPointer;
+        `)
+        .replace('#include <begin_vertex>', `
+          vec3 transformed = vec3(position);
+          float ridge = sin(position.y * 3.4 + uTime * 1.3) * cos(position.x * 2.1 - uTime * .7);
+          float pointerInfluence = exp(-2.8 * distance(normalize(position.xy + .0001), normalize(uPointer + .0001)));
+          transformed += normal * (ridge * .22 * uMorph + pointerInfluence * .18);
+        `);
+    };
+
+    const sculpture = new THREE.Mesh(lowPoly, mirrorMaterial);
+    root.add(sculpture);
+
+    const wireMaterial = new THREE.MeshBasicMaterial({
+      color: 0x78f6ff,
+      wireframe: true,
+      transparent: true,
+      opacity: .26,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+
+    const wire = new THREE.Mesh(lowPoly.clone().scale(1.035,1.035,1.035), wireMaterial);
+    root.add(wire);
+
+    const lineCount = 18;
+    const lineGroup = new THREE.Group();
+    root.add(lineGroup);
+
+    const lineMaterials = [];
+    const buildFlowLine = (i) => {
+      const pts = [];
+      const turns = 1.5 + (i % 5) * .16;
+      const radius = 2.55 + Math.sin(i * 1.7) * .25;
+      for (let j = 0; j < 90; j++) {
+        const t = j / 89;
+        const angle = t * Math.PI * 2 * turns + i * .43;
+        const y = (t - .5) * 4.8 + Math.sin(t * 8 + i) * .18;
+        const r = radius + Math.sin(t * 9 + i * 1.3) * .18;
+        pts.push(new THREE.Vector3(Math.cos(angle) * r, y, Math.sin(angle) * r * .62));
+      }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const geo = new THREE.TubeGeometry(curve, 180, .008 + (i % 3) * .004, 3, false);
+      const mat = new THREE.MeshBasicMaterial({
+        color: i % 2 ? 0xff4ecf : 0x64f4ff,
         transparent: true,
-        depthTest: false,
-        vertexShader: sharedVert,
-        fragmentShader: `
-            varying vec2 vScreenPos;
-            varying vec3 vNormal;
-            varying vec3 vLocalPos;
-            uniform float uTime;
-            uniform vec2 uMouse;
-            uniform float uAspect;
+        opacity: .38,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      lineMaterials.push(mat);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.z = i * .15;
+      mesh.userData.baseRot = mesh.rotation.z;
+      lineGroup.add(mesh);
+    };
+    for (let i = 0; i < lineCount; i++) buildFlowLine(i);
 
-            float magic(vec3 p) {
-                p *= 1.5;
-                float v = sin(p.x + sin(p.y + uTime)) + sin(p.y + sin(p.z + uTime)) + sin(p.z + sin(p.x + uTime));
-                return v * 0.5 + 0.5;
-            }
+    const particleCount = 1100;
+    const particleGeo = new THREE.BufferGeometry();
+    const particlePos = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+      const r = 2.3 + Math.random() * 2.8;
+      const a = Math.random() * Math.PI * 2;
+      const b = (Math.random() - .5) * Math.PI;
+      particlePos[i*3] = Math.cos(a) * r;
+      particlePos[i*3+1] = Math.sin(b) * r * .7;
+      particlePos[i*3+2] = Math.sin(a) * r * .7;
+    }
+    particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePos, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: .018,
+      transparent: true,
+      opacity: .46,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const particles = new THREE.Points(particleGeo, particleMat);
+    root.add(particles);
 
-            void main() {
-                vec2 diff = vScreenPos - uMouse;
-                diff.x *= uAspect;
-                float dist = length(diff);
-                float mask = 1.0 - smoothstep(${CONFIG.shieldSize}, ${CONFIG.shieldSize} + ${CONFIG.shieldSharpness}, dist);
-                
-                if (mask < 0.01) discard;
+    const ambient = new THREE.AmbientLight(0x6f7cff, .75);
+    const key = new THREE.PointLight(0x71f8ff, 38, 20);
+    const fill = new THREE.PointLight(0xff4fcf, 28, 18);
+    key.position.set(4, 3, 5);
+    fill.position.set(-4, -2, 4);
+    scene.add(ambient, key, fill);
 
-                float pattern = magic(vLocalPos + uTime * 0.2);
-                vec3 rainbow = 0.5 + 0.5 * cos(6.28318 * (vec3(1,1,1) * (pattern + uTime * 0.1) + vec3(0, 0.33, 0.67)));
-                
-                // Kantenleuchten
-                float edge = pow(1.0 - abs(vNormal.z), 2.0);
-                vec3 finalCol = rainbow + edge * 0.4;
-                
-                gl_FragColor = vec4(finalCol, mask);
-            }
-        `
+    const pointer = new THREE.Vector2();
+    const targetPointer = new THREE.Vector2();
+    const gyroTarget = new THREE.Vector2();
+    let activeCase = 0;
+    let state = interpreter(CASES[0]);
+    let targetState = state;
+    let cameraStream = null;
+    let cameraActive = false;
+    let xrSession = null;
+    let wheelLock = false;
+
+    const sampleGrid = { r: 0, g: 0, b: 0, motion: 0, prev: null };
+
+    CASES.forEach((entry, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'case-dot' + (i === 0 ? ' active' : '');
+      btn.setAttribute('aria-label', entry.title);
+      btn.onclick = () => setCase(i);
+      dotsRoot.appendChild(btn);
     });
 
-    // --- GEOMETRY & MESHES ---
-    const geo = new THREE.IcosahedronGeometry(CONFIG.radius, CONFIG.detail);
-    geo.computeFlatVertexNormals(); // Wichtig für harten Facetten-Look
-    const inner = new THREE.Mesh(geo, zebraMat);
-    scene.add(inner);
+    const setCase = (index) => {
+      activeCase = (index + CASES.length) % CASES.length;
+      const entry = CASES[activeCase];
+      targetState = interpreter(entry);
+      caseKicker.textContent = `Case ${String(activeCase + 1).padStart(2, '0')}`;
+      caseTitle.textContent = entry.title;
+      caseDetail.innerHTML = `
+        <span>${entry.year}</span>
+        <span>${entry.location.city}</span>
+        <span>${entry.disciplines.join(' / ')}</span>
+      `;
+      [...dotsRoot.children].forEach((dot, i) => dot.classList.toggle('active', i === activeCase));
+    };
+    setCase(0);
 
-    const ghostGeo = new THREE.IcosahedronGeometry(CONFIG.ghostRadius, CONFIG.detail);
-    ghostGeo.computeFlatVertexNormals();
-    const ghost = new THREE.Mesh(ghostGeo, shieldMat);
-    scene.add(ghost);
-
-    const wire = new THREE.Mesh(ghostGeo, new THREE.MeshBasicMaterial({ 
-        color: 0x00f0ff, wireframe: true, transparent: true, opacity: 0.15 
-    }));
-    scene.add(wire);
-
-    // --- INPUT LOGIC ---
-    const updateInput = (x, y) => {
-        targetInput.x = (x / window.innerWidth) * 2 - 1;
-        targetInput.y = -(y / window.innerHeight) * 2 + 1;
+    const requestCamera = async () => {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: isMobile ? { ideal: "environment" } : "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      cameraFeed.srcObject = cameraStream;
+      await cameraFeed.play();
+      cameraActive = true;
+      document.body.classList.add('camera-live');
+      modeLabel.textContent = isMobile ? 'camera / spatial' : 'webcam / reflective';
     };
 
-    const hideOverlay = () => {
-        document.getElementById('overlay').style.display = 'none';
+    const activateOrientation = async () => {
+      if (!isMobile) return;
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission !== 'granted') return;
+      }
+      window.addEventListener('deviceorientation', e => {
+        gyroTarget.x = THREE.MathUtils.clamp((e.gamma || 0) / 35, -1, 1);
+        gyroTarget.y = THREE.MathUtils.clamp(((e.beta || 0) - 45) / 45, -1, 1);
+      });
     };
 
-    document.getElementById('btn-touch').onclick = () => {
-        hideOverlay();
-        window.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            updateInput(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
-        window.addEventListener('mousemove', (e) => updateInput(e.clientX, e.clientY));
+    const startExperience = async (withCamera) => {
+      if (withCamera && navigator.mediaDevices?.getUserMedia) {
+        try { await requestCamera(); } catch (err) { console.warn('Camera unavailable', err); }
+      } else {
+        modeLabel.textContent = isMobile ? 'touch / spatial' : 'mouse / generative';
+      }
+      try { await activateOrientation(); } catch {}
+      intro.classList.add('hidden');
     };
 
-    document.getElementById('btn-gyro').onclick = async () => {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            try {
-                const res = await DeviceOrientationEvent.requestPermission();
-                if (res === 'granted') {
-                    activateGyro();
-                }
-            } catch (e) { console.error(e); }
-        } else {
-            activateGyro();
+    document.getElementById('start-camera').onclick = () => startExperience(true);
+    document.getElementById('start-no-camera').onclick = () => startExperience(false);
+
+    if (navigator.xr && isMobile) {
+      navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+        if (!supported) return;
+        arButton.hidden = false;
+        arButton.onclick = async () => {
+          await startExperience(true);
+          try {
+            xrSession = await navigator.xr.requestSession('immersive-ar', {
+              requiredFeatures: ['local-floor'],
+              optionalFeatures: ['dom-overlay'],
+              domOverlay: { root: document.body }
+            });
+            renderer.xr.setReferenceSpaceType('local-floor');
+            await renderer.xr.setSession(xrSession);
+            root.scale.setScalar(.36);
+            root.position.set(0, 1.25, -2.1);
+            modeLabel.textContent = 'webxr / ar';
+            helpCopy.textContent = 'Bewege dich um die Installation · Tippen wechselt Cases';
+            xrSession.addEventListener('end', () => {
+              root.scale.setScalar(1);
+              root.position.set(0,0,0);
+              xrSession = null;
+            });
+          } catch (err) {
+            console.warn('WebXR failed, using camera spatial fallback', err);
+          }
+        };
+      });
+    }
+
+    const onPointer = (clientX, clientY) => {
+      targetPointer.x = (clientX / innerWidth) * 2 - 1;
+      targetPointer.y = -(clientY / innerHeight) * 2 + 1;
+    };
+
+    addEventListener('pointermove', e => onPointer(e.clientX, e.clientY), { passive: true });
+    addEventListener('pointerdown', e => {
+      onPointer(e.clientX, e.clientY);
+      if (isMobile && intro.classList.contains('hidden')) setCase(activeCase + 1);
+    }, { passive: true });
+
+    addEventListener('wheel', e => {
+      if (wheelLock || !intro.classList.contains('hidden')) return;
+      wheelLock = true;
+      setCase(activeCase + (e.deltaY > 0 ? 1 : -1));
+      setTimeout(() => wheelLock = false, 450);
+    }, { passive: true });
+
+    addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setCase(activeCase + 1);
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setCase(activeCase - 1);
+    });
+
+    const updateCameraTexture = () => {
+      if (!cameraActive || cameraFeed.readyState < 2) return;
+      envCtx.save();
+      envCtx.scale(-1, 1);
+      envCtx.drawImage(cameraFeed, -512, 0, 512, 512);
+      envCtx.restore();
+
+      const img = envCtx.getImageData(0, 0, 512, 512);
+      const d = img.data;
+      let r = 0, g = 0, b = 0, diff = 0, samples = 0;
+      const step = 32;
+      for (let y = 0; y < 512; y += step) {
+        for (let x = 0; x < 512; x += step) {
+          const idx = (y * 512 + x) * 4;
+          r += d[idx]; g += d[idx+1]; b += d[idx+2];
+          if (sampleGrid.prev) {
+            diff += Math.abs(d[idx] - sampleGrid.prev[idx]) + Math.abs(d[idx+1] - sampleGrid.prev[idx+1]) + Math.abs(d[idx+2] - sampleGrid.prev[idx+2]);
+          }
+          samples++;
         }
+      }
+      sampleGrid.r = r / samples / 255;
+      sampleGrid.g = g / samples / 255;
+      sampleGrid.b = b / samples / 255;
+      sampleGrid.motion = sampleGrid.prev ? THREE.MathUtils.clamp(diff / samples / 255 / 3 * 4, 0, 1) : 0;
+      sampleGrid.prev = new Uint8ClampedArray(d);
+      cameraTexture.needsUpdate = true;
+
+      mirrorMaterial.emissive.setRGB(sampleGrid.r * .16, sampleGrid.g * .16, sampleGrid.b * .16);
+      mirrorMaterial.emissiveIntensity = .4 + sampleGrid.motion * 1.2;
     };
 
-    function activateGyro() {
-        document.getElementById('mode').innerText = 'GYRO';
-        window.addEventListener('deviceorientation', (e) => {
-            // Mapping für sanfte Steuerung
-            targetInput.x = (e.gamma / 45); 
-            targetInput.y = (e.beta - 45) / 45;
-        });
-        hideOverlay();
-    }
+    const clock = new THREE.Clock();
+    const animate = () => {
+      const t = clock.getElapsedTime();
+      pointer.lerp(isMobile ? gyroTarget : targetPointer, .07);
 
-    // --- ANIMATION LOOP ---
-    function animate() {
-        requestAnimationFrame(animate);
-        currentInput.lerp(targetInput, CONFIG.lerpFactor);
+      state = {
+        morph: THREE.MathUtils.lerp(state.morph, targetState.morph, .035),
+        distortion: THREE.MathUtils.lerp(state.distortion, targetState.distortion, .035),
+        density: THREE.MathUtils.lerp(state.density, targetState.density, .035),
+        glitch: THREE.MathUtils.lerp(state.glitch, targetState.glitch, .035),
+        rotationBias: THREE.MathUtils.lerp(state.rotationBias, targetState.rotationBias, .025),
+        tiltBias: THREE.MathUtils.lerp(state.tiltBias, targetState.tiltBias, .025),
+        palette: targetState.palette
+      };
 
-        const time = performance.now() * 0.001;
-        
-        zebraMat.uniforms.uTime.value = time;
-        shieldMat.uniforms.uTime.value = time;
-        shieldMat.uniforms.uMouse.value.copy(currentInput);
+      if (cameraActive && Math.floor(t * 12) % 2 === 0) updateCameraTexture();
 
-        inner.rotation.y += 0.005;
-        
-        // Schild neigt sich zum Input-Punkt
-        ghost.rotation.set(-currentInput.y * 0.5, currentInput.x * 0.5, 0);
-        wire.rotation.copy(ghost.rotation);
+      const motionBoost = cameraActive ? sampleGrid.motion : 0;
+      const rotX = pointer.y * .42 + state.tiltBias * .28;
+      const rotY = pointer.x * .55 + state.rotationBias * .1 + t * .08;
 
-        renderer.render(scene, camera);
-    }
-    animate();
+      root.rotation.x = THREE.MathUtils.lerp(root.rotation.x, rotX, .045);
+      root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, rotY, .045);
+      root.rotation.z = Math.sin(t * .2) * .07;
 
-    window.onresize = () => {
-        const aspect = window.innerWidth / window.innerHeight;
-        camera.aspect = aspect;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        shieldMat.uniforms.uAspect.value = aspect;
+      sculpture.scale.set(
+        1 + Math.sin(t * .7) * .025 * state.morph,
+        1 + Math.cos(t * .63) * .035 * state.morph,
+        1 + Math.sin(t * .52) * .03
+      );
+
+      wire.rotation.y = -t * (.025 + state.glitch * .03);
+      wireMaterial.opacity = .16 + state.density * .16 + motionBoost * .18;
+      wireMaterial.color.copy(state.palette[0]);
+
+      lineGroup.rotation.y = t * (.035 + state.distortion * .018);
+      lineGroup.rotation.x = Math.sin(t * .18) * .18;
+      lineGroup.children.forEach((mesh, i) => {
+        mesh.rotation.z = mesh.userData.baseRot + Math.sin(t * (.28 + i * .005) + i) * .1 * state.distortion;
+        mesh.material.opacity = .16 + state.density * .28 + motionBoost * .24;
+        mesh.material.color.copy(state.palette[i % state.palette.length]);
+      });
+
+      particles.rotation.y = -t * .025;
+      particles.rotation.z = t * .012;
+      particleMat.opacity = .18 + state.glitch * .35 + motionBoost * .25;
+      particleMat.color.copy(state.palette[1]);
+
+      key.color.copy(state.palette[0]);
+      fill.color.copy(state.palette[1]);
+      key.intensity = 24 + state.intensity * 20 + motionBoost * 18;
+      fill.intensity = 18 + state.glitch * 22;
+
+      if (mirrorMaterial.userData.shader) {
+        mirrorMaterial.userData.shader.uniforms.uTime.value = t;
+        mirrorMaterial.userData.shader.uniforms.uMorph.value = state.distortion + motionBoost * .9;
+        mirrorMaterial.userData.shader.uniforms.uPointer.value.copy(pointer);
+      }
+
+      renderer.render(scene, camera);
     };
-</script>
+
+    renderer.setAnimationLoop(animate);
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    });
+
+    helpCopy.textContent = isMobile
+      ? 'Touch · Gerät bewegen · Kamera als räumlicher Input · Tippen wechselt Cases'
+      : 'Mouse bewegen · Scrollen für Cases · Webcam speist Reflexionen und Bewegung';
+  </script>
 </body>
 </html>
