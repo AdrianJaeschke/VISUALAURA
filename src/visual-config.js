@@ -5,139 +5,109 @@ export const VISUAL_PARAMS={
   },
 
   bloom:{
-    strength:1.02,
-    radius:.62,
-    threshold:.78,
-    motionBoost:.20
+    strength:1.12,
+    radius:.72,
+    threshold:.64,
+    motionBoost:.24
   },
 
   postfx:{
     dither:{
-      strength:.22,
-      scale:1.65,
-      levels:6
+      strength:.15,
+      scale:1.7,
+      levels:7
     }
   },
 
   composition:{
-    hero:{
-      size:3.12,
-      z:.18,
-      tiltX:-.035,
-      tiltY:.065
+    band:{
+      segments:56,
+      radius:2.62,
+      radiusNoise:.52,
+      width:1.22,
+      widthNoise:.58,
+      yScale:.72,
+      depth:.92,
+      fold:.42,
+      twist:.78,
+      rotationX:-.10,
+      rotationY:.08,
+      rotationZ:-.16
     },
 
-    moire:{
-      count:3,
-      radius:1.16,
-      sizeMin:1.34,
-      sizeMax:1.86,
-      zStart:.02,
-      zStep:-.07,
-      yRatio:.68,
-      rotationJitter:.16
+    wireAura:{
+      count:38,
+      radiusMin:3.15,
+      radiusMax:6.05,
+      yScale:.74,
+      zSpread:3.4,
+      sizeMin:.34,
+      sizeMax:1.22,
+      networkStride:5,
+      networkOpacity:.20
     },
 
-    aura:{
-      count:124,
-      radiusMin:1.28,
-      radiusMax:3.18,
-      ellipsoid:[1.0,.77,.82],
-      sizeMin:.07,
-      sizeMax:.36,
-      depthSpread:1.22,
-      radialPower:1.18
-    },
-
-    outerWire:{
-      size:6.35,
-      z:-.24,
-      tubeRadius:.018,
-      tiltX:.015,
-      tiltY:-.045,
-      tiltZ:.055,
-      color:"#ffffff",
-      emissiveColor:"#ffffff",
-      emissiveIntensity:0,
-      metalness:.82,
-      roughness:.23,
-      clearcoat:.92,
-      clearcoatRoughness:.10
+    typography:{
+      scale:1,
+      opacity:.82
     }
   },
 
   reaction:{
     root:{
       pointerX:.10,
-      pointerY:.08,
-      cameraX:.12,
+      pointerY:.075,
+      cameraX:.13,
       cameraY:.10,
-      velocityRoll:.28
+      velocityRoll:.24
     },
 
-    hero:{
-      xPush:.30,
-      yPush:.23,
-      zPush:.36,
-      velocityTilt:1.18,
-      scalePulse:.038
+    band:{
+      xPush:.18,
+      yPush:.15,
+      zPush:.30,
+      velocityTilt:.66,
+      scalePulse:.045,
+      response:.024
     },
 
-    moire:{
-      xPush:.17,
-      yPush:.14,
-      zPush:.20,
-      velocityTilt:.62,
-      scalePulse:.020,
-      lag:.018
+    wireAura:{
+      xPush:.12,
+      yPush:.10,
+      zPush:.18,
+      velocityTilt:.38,
+      scalePulse:.025,
+      response:.015
     },
 
-    aura:{
-      xPush:.11,
-      yPush:.09,
-      zPush:.14,
-      velocityTilt:.31,
-      scalePulse:.015,
-      lag:.012
-    },
-
-    outerWire:{
-      xPush:.045,
-      yPush:.035,
-      velocityTilt:.10,
-      scalePulse:.006,
-      lag:.008
+    typography:{
+      pointerX:.035,
+      pointerY:.025,
+      cameraX:.045,
+      cameraY:.035,
+      response:.018
     }
   },
 
   material:{
-    reflection:{
-      pixelGrid:[72,48],
-      saturation:.76,
-      brightness:1.34,
-      baseLift:.095,
-      edgeGlow:2.15,
-      fresnelGlow:.52,
-      opacity:.98
+    band:{
+      opacity:.78,
+      brightness:1.20,
+      edgeGlow:1.55,
+      fresnelGlow:1.05,
+      whiteSpecular:.28,
+      speed:.16
     },
 
-    moire:{
-      black:.008,
-      white:.98,
-      opacity:.94,
-      frequencyA:46,
-      frequencyB:53,
-      radialFrequency:72,
-      zebraMix:.42,
-      edgeGlow:.72
+    wire:{
+      opacity:.58,
+      glow:1.55,
+      speed:.12
     },
 
-    iridescent:{
-      opacity:.92,
-      brightness:1.18,
-      edgeGlow:1.42,
-      fresnelGlow:.62,
-      speed:.18
+    points:{
+      opacity:.72,
+      size:.038
     }
   }
 };
