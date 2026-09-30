@@ -30,7 +30,11 @@ const controls=[
   {group:"Band Material",path:"material.band.edgeGlow",label:"Edge Glow",min:0,max:4,step:.01},
   {group:"Band Material",path:"material.band.fresnelGlow",label:"Fresnel",min:0,max:3,step:.01},
   {group:"Band Material",path:"material.band.whiteSpecular",label:"White Specular",min:0,max:1.5,step:.01},
-  {group:"Band Material",path:"material.band.speed",label:"Color Speed",min:0,max:1,step:.01},
+  {group:"Band Material",path:"material.band.pearlStrength",label:"Pearl Strength",min:0,max:1.5,step:.01},
+  {group:"Band Material",path:"material.band.filmThickness",label:"Film Thickness",min:.2,max:3,step:.01},
+  {group:"Band Material",path:"material.band.whiteness",label:"Whiteness",min:0,max:1,step:.01},
+  {group:"Band Material",path:"material.band.spectralSaturation",label:"Spectrum",min:0,max:1.5,step:.01},
+  {group:"Band Material",path:"material.band.speed",label:"Color Drift",min:0,max:1,step:.01},
 
   {group:"Wire Aura",path:"composition.wireAura.count",label:"Triangle Count",min:4,max:100,step:1,reload:true},
   {group:"Wire Aura",path:"composition.wireAura.radiusMin",label:"Radius Min",min:1,max:8,step:.01,reload:true},
