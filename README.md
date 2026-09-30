@@ -414,3 +414,27 @@ bloom: {
 ```
 
 Die Rail kann live in der PARAMS-Konsole unter **Camera Rail** eingestellt werden.
+
+
+## Pearl Ribbon + Postprocess-safe Cases
+
+Das Band ist jetzt als transluzentes Perlmutt-Material ausgelegt:
+
+- weiße / leicht ivory-farbene Grundsubstanz
+- blickwinkelabhängige Dünnschicht-Interferenz
+- Farben verschieben sich mit Fresnel / Betrachtungswinkel
+- stärkere Irisierung an streifenden Blickwinkeln und Kanten
+- Vorderseiten bleiben überwiegend weiß und transparent
+- Case-Palette beeinflusst das Band nur noch sehr subtil
+- Bloom und Wire-Glow wurden weiter reduziert
+
+Die Pearl-Parameter sind live in der PARAMS-Konsole regelbar:
+
+```js
+material.band.pearlStrength
+material.band.filmThickness
+material.band.whiteness
+material.band.spectralSaturation
+```
+
+Case-Präsentationen werden in der App jetzt als klassisches DOM-Overlay gerendert. Dadurch liegen Bilder, Videos, Titel und Beschreibung **nach** dem gesamten Three.js-Rendering und werden nicht mehr von Bloom, Dither, Tone Mapping oder Glitch-Postprocessing verfälscht.
