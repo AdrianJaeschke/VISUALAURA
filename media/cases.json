@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-30T17:01:00",
+  "generated": "2026-09-30T15:11:02",
   "cases": [
     {
       "id": "case1",
@@ -30,13 +30,13 @@
       "complexity": 0.696,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 1.0413,
+        "moireScale": 0.9153,
+        "auraScale": 0.9553,
+        "wireScale": 0.9454,
         "bloomBias": 0.0157,
         "orbitBias": -0.1045,
-        "iridescenceBias": 0.9957,
+        "iridescenceBias": 1.0816,
         "moireBias": -0.0071
       },
       "presentation": {
@@ -104,13 +104,13 @@
       "complexity": 0.668,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 1.0043,
+        "moireScale": 1.0986,
+        "auraScale": 1.093,
+        "wireScale": 0.9486,
         "bloomBias": 0.0715,
         "orbitBias": -0.0137,
-        "iridescenceBias": 0.998,
+        "iridescenceBias": 0.949,
         "moireBias": -0.0034
       },
       "presentation": {
@@ -174,13 +174,13 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 1.0478,
+        "moireScale": 0.9073,
+        "auraScale": 1.0493,
+        "wireScale": 0.9828,
         "bloomBias": 0.0324,
         "orbitBias": 0.0509,
-        "iridescenceBias": 0.9558,
+        "iridescenceBias": 1.097,
         "moireBias": -0.0737
       },
       "presentation": {
@@ -232,13 +232,13 @@
       "complexity": 0.668,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 1.0062,
+        "moireScale": 0.9631,
+        "auraScale": 0.9245,
+        "wireScale": 1.0452,
         "bloomBias": 0.0616,
         "orbitBias": -0.0804,
-        "iridescenceBias": 1.0169,
+        "iridescenceBias": 1.046,
         "moireBias": 0.0281
       },
       "presentation": {
@@ -302,13 +302,13 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 1.0787,
+        "moireScale": 1.025,
+        "auraScale": 1.1002,
+        "wireScale": 0.9722,
         "bloomBias": -0.0038,
         "orbitBias": 0.1144,
-        "iridescenceBias": 1.0108,
+        "iridescenceBias": 1.0689,
         "moireBias": 0.018
       },
       "presentation": {
@@ -360,13 +360,13 @@
       "complexity": 0.612,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 0.9959,
+        "moireScale": 1.092,
+        "auraScale": 1.0614,
+        "wireScale": 1.0566,
         "bloomBias": 0.0277,
         "orbitBias": -0.1406,
-        "iridescenceBias": 1.0562,
+        "iridescenceBias": 0.9722,
         "moireBias": 0.0937
       },
       "presentation": {
@@ -422,13 +422,13 @@
       "complexity": 0.584,
       "featured": false,
       "visual": {
-        "heroScale": 1,
-        "moireScale": 1,
-        "auraScale": 1,
-        "wireScale": 1,
+        "heroScale": 1.0391,
+        "moireScale": 1.0026,
+        "auraScale": 1.0145,
+        "wireScale": 0.9656,
         "bloomBias": 0.0691,
         "orbitBias": 0.1496,
-        "iridescenceBias": 0.949,
+        "iridescenceBias": 0.9842,
         "moireBias": -0.085
       },
       "presentation": {
