@@ -34,6 +34,9 @@ const controls=[
   {group:"Band Material",path:"material.band.filmThickness",label:"Film Thickness",min:.2,max:3,step:.01},
   {group:"Band Material",path:"material.band.whiteness",label:"Whiteness",min:0,max:1,step:.01},
   {group:"Band Material",path:"material.band.spectralSaturation",label:"Spectrum",min:0,max:1.5,step:.01},
+  {group:"Band Material",path:"material.band.focusWidth",label:"Focus Width",min:.03,max:.30,step:.01},
+  {group:"Band Material",path:"material.band.focusColorBoost",label:"Focus Color",min:0,max:1.5,step:.01},
+  {group:"Band Material",path:"material.band.focusReflection",label:"Focus Reflection",min:0,max:1.5,step:.01},
   {group:"Band Material",path:"material.band.speed",label:"Color Drift",min:0,max:1,step:.01},
 
   {group:"Wire Aura",path:"composition.wireAura.count",label:"Triangle Count",min:4,max:100,step:1,reload:true},
