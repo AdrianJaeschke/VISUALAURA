@@ -341,6 +341,7 @@
         morph: THREE.MathUtils.lerp(.18, .9, yearNorm),
         distortion: .35 + entry.intensity * .75,
         density: .4 + entry.complexity * .9,
+        intensity: entry.intensity,
         glitch: .12 + (entry.tags.includes("Glitch") ? .75 : entry.complexity * .2),
         rotationBias: geoAngle,
         tiltBias: geoTilt,
@@ -380,6 +381,7 @@
     const envCtx = envCanvas.getContext('2d', { willReadFrequently: true });
     const cameraTexture = new THREE.CanvasTexture(envCanvas);
     cameraTexture.colorSpace = THREE.SRGBColorSpace;
+    cameraTexture.mapping = THREE.EquirectangularReflectionMapping;
     cameraTexture.wrapS = cameraTexture.wrapT = THREE.MirroredRepeatWrapping;
 
     const root = new THREE.Group();
@@ -398,7 +400,8 @@
       clearcoatRoughness: .12,
       side: THREE.DoubleSide,
       envMapIntensity: 1.8,
-      flatShading: true
+      flatShading: true,
+      envMap: cameraTexture
     });
 
     mirrorMaterial.onBeforeCompile = shader => {
@@ -666,6 +669,7 @@
         morph: THREE.MathUtils.lerp(state.morph, targetState.morph, .035),
         distortion: THREE.MathUtils.lerp(state.distortion, targetState.distortion, .035),
         density: THREE.MathUtils.lerp(state.density, targetState.density, .035),
+        intensity: THREE.MathUtils.lerp(state.intensity, targetState.intensity, .035),
         glitch: THREE.MathUtils.lerp(state.glitch, targetState.glitch, .035),
         rotationBias: THREE.MathUtils.lerp(state.rotationBias, targetState.rotationBias, .025),
         tiltBias: THREE.MathUtils.lerp(state.tiltBias, targetState.tiltBias, .025),
