@@ -1,510 +1,185 @@
-import * as THREE from "three";
-import { PARAMS } from "./params.js";
+function normalizeMedia(caseData){
+  const presentation=caseData?.presentation||{};
+  const hero=caseData?.hero||{};
 
-const clamp01=v=>Math.max(0,Math.min(1,v));
-const easeOutCubic=t=>1-Math.pow(1-clamp01(t),3);
-const easeInOutCubic=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
-
-function hashString(value=""){
-  let h=2166136261;
-  for(let i=0;i<value.length;i++){
-    h^=value.charCodeAt(i);
-    h=Math.imul(h,16777619);
-  }
-  return h>>>0;
-}
-
-function random01(seed){
-  const x=Math.sin(seed*12.9898+78.233)*43758.5453;
-  return Math.abs(x-Math.floor(x));
-}
-
-function wrapCanvasText(ctx,text,maxWidth,maxLines=3){
-  const words=String(text||"").trim().split(/\s+/).filter(Boolean);
-  if(!words.length)return [];
-
-  const lines=[];
-  let line="";
-
-  for(const word of words){
-    const test=line?line+" "+word:word;
-    if(ctx.measureText(test).width<=maxWidth||!line){
-      line=test;
-      continue;
-    }
-
-    lines.push(line);
-    line=word;
-
-    if(lines.length>=maxLines-1)break;
-  }
-
-  if(line&&lines.length<maxLines)lines.push(line);
-
-  if(words.length&&lines.length===maxLines){
-    const last=lines[maxLines-1];
-    if(last.length>0&&!last.endsWith("…"))lines[maxLines-1]=last.replace(/[.,;:!?]?$/,"")+"…";
-  }
-
-  return lines;
-}
-
-function textTexture(text,description,palette){
-  const canvas=document.createElement("canvas");
-  canvas.width=1600;
-  canvas.height=480;
-
-  const ctx=canvas.getContext("2d");
-  const a=palette?.[0]||"#ffffff";
-  const b=palette?.[1]||"#74f7ff";
-
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  const grad=ctx.createLinearGradient(0,0,canvas.width,0);
-  grad.addColorStop(0,a);
-  grad.addColorStop(.45,"#ffffff");
-  grad.addColorStop(1,b);
-
-  ctx.textAlign="center";
-  ctx.textBaseline="middle";
-  ctx.font='800 154px "Turret Road", Arial, sans-serif';
-  ctx.fillStyle=grad;
-  ctx.shadowColor=a;
-  ctx.shadowBlur=26;
-  ctx.fillText(String(text||"CASE").toUpperCase(),canvas.width/2,182);
-
-  ctx.shadowBlur=0;
-  ctx.font='500 35px "Turret Road", Arial, sans-serif';
-  ctx.fillStyle="rgba(255,255,255,.72)";
-
-  const descriptionLines=wrapCanvasText(ctx,description,1180,3);
-  descriptionLines.forEach((line,i)=>{
-    ctx.fillText(line,canvas.width/2,326+i*43);
-  });
-
-  if(!descriptionLines.length){
-    ctx.font='500 28px "Turret Road", Arial, sans-serif';
-    ctx.fillStyle="rgba(255,255,255,.42)";
-    ctx.fillText("CASE / VISUAL AURA",canvas.width/2,345);
-  }
-
-  const texture=new THREE.CanvasTexture(canvas);
-  texture.colorSpace=THREE.SRGBColorSpace;
-  texture.minFilter=THREE.LinearFilter;
-  return texture;
-}
-function placeholderTexture(caseData,index){
-  const canvas=document.createElement("canvas");
-  canvas.width=960;
-  canvas.height=640;
-  const ctx=canvas.getContext("2d");
-  const palette=caseData.palette?.length?caseData.palette:["#74f7ff","#ff4ecf","#7b69ff"];
-  const seed=hashString(caseData.id||caseData.title||"case")+index*97;
-
-  ctx.fillStyle="#050507";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  const grad=ctx.createLinearGradient(0,0,canvas.width,canvas.height);
-  grad.addColorStop(0,palette[index%palette.length]);
-  grad.addColorStop(.52,"#08090d");
-  grad.addColorStop(1,palette[(index+1)%palette.length]);
-  ctx.globalAlpha=.62;
-  ctx.fillStyle=grad;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  ctx.globalAlpha=.9;
-  ctx.strokeStyle="rgba(255,255,255,.72)";
-  ctx.lineWidth=2;
-
-  for(let i=0;i<34;i++){
-    const r=random01(seed+i*13);
-    const x=random01(seed+i*31)*canvas.width;
-    const y=random01(seed+i*47)*canvas.height;
-    const s=40+r*210;
-    ctx.beginPath();
-    ctx.moveTo(x,y-s*.58);
-    ctx.lineTo(x-s*.5,y+s*.32);
-    ctx.lineTo(x+s*.5,y+s*.32);
-    ctx.closePath();
-    if(i%4===0){
-      ctx.fillStyle="rgba(255,255,255,"+(.025+r*.08)+")";
-      ctx.fill();
-    }
-    ctx.stroke();
-  }
-
-  ctx.globalAlpha=.58;
-  ctx.fillStyle="#fff";
-  ctx.font='700 42px "Turret Road", Arial, sans-serif';
-  ctx.fillText(String(caseData.title||"CASE").toUpperCase(),46,76);
-  ctx.font='500 23px "Turret Road", Arial, sans-serif';
-  ctx.fillText(String(index+1).padStart(2,"0"),48,118);
-
-  const texture=new THREE.CanvasTexture(canvas);
-  texture.colorSpace=THREE.SRGBColorSpace;
-  texture.minFilter=THREE.LinearFilter;
-  return {texture,aspect:canvas.width/canvas.height,generated:true};
-}
-
-async function imageTexture(entry,caseData,index){
-  const src=typeof entry==="string"?entry:entry?.src;
-  if(!src)return placeholderTexture(caseData,index);
-
-  try{
-    const loader=new THREE.TextureLoader();
-    loader.setCrossOrigin("anonymous");
-    const texture=await loader.loadAsync(src);
-    texture.colorSpace=THREE.SRGBColorSpace;
-    texture.minFilter=THREE.LinearFilter;
-    const image=texture.image;
-    return {
-      texture,
-      aspect:(image?.naturalWidth||image?.width||3)/(image?.naturalHeight||image?.height||2),
-      generated:false
-    };
-  }catch(err){
-    console.warn("VISUALAURA: case image could not be loaded",src,err);
-    return placeholderTexture(caseData,index);
-  }
-}
-
-function normalizedMedia(caseData){
-  const presentation=caseData.presentation||{};
-  const hero=caseData.hero||{};
   const images=[
     ...(Array.isArray(presentation.images)?presentation.images:[]),
-    ...(Array.isArray(caseData.images)?caseData.images:[])
+    ...(Array.isArray(caseData?.images)?caseData.images:[])
   ];
 
   if(hero.image&&!images.some(item=>(typeof item==="string"?item:item?.src)===hero.image)){
-    images.unshift({src:hero.image,alt:caseData.title});
+    images.unshift({src:hero.image,alt:caseData?.title||"Case"});
   }
 
-  const video=presentation.video||caseData.video||hero.video||null;
+  const video=presentation.video||caseData?.video||hero.video||null;
   return {images,video};
 }
 
-function createVideoPlane(videoEntry,presentationGroup){
-  const src=typeof videoEntry==="string"?videoEntry:videoEntry?.src;
-  if(!src)return null;
-
-  const video=document.createElement("video");
-  video.src=src;
-  video.crossOrigin="anonymous";
-  video.muted=true;
-  video.loop=true;
-  video.playsInline=true;
-  video.preload="metadata";
-
-  const texture=new THREE.VideoTexture(video);
-  texture.colorSpace=THREE.SRGBColorSpace;
-  texture.minFilter=THREE.LinearFilter;
-  texture.magFilter=THREE.LinearFilter;
-
-  const material=new THREE.MeshBasicMaterial({
-    map:texture,
-    transparent:true,
-    opacity:0,
-    depthWrite:false,
-    depthTest:false,
-    toneMapped:false
-  });
-
-  const plane=new THREE.Mesh(new THREE.PlaneGeometry(1,1),material);
-  plane.renderOrder=102;
-  plane.position.set(0,0,-.38);
-  plane.scale.set(PARAMS.presentation.videoWidth,PARAMS.presentation.videoHeight,1);
-  plane.userData.kind="video";
-  plane.userData.basePosition=plane.position.clone();
-  plane.userData.baseScale=plane.scale.clone();
-  presentationGroup.add(plane);
-
-  video.play().catch(()=>{});
-
-  return {video,texture,plane};
+function srcOf(entry){
+  return typeof entry==="string"?entry:entry?.src||"";
 }
 
-function disposeObject(object){
-  object.traverse(child=>{
-    if(child.material){
-      const materials=Array.isArray(child.material)?child.material:[child.material];
-      for(const material of materials){
-        if(material.map&&material.map.isTexture&&!(material.map instanceof THREE.VideoTexture)){
-          material.map.dispose();
-        }
-        material.dispose?.();
-      }
-    }
-    child.geometry?.dispose?.();
-  });
+function altOf(entry,fallback){
+  return typeof entry==="string"?fallback:(entry?.alt||fallback);
 }
 
-export function createCasePresentation(scene,camera,visual){
-  const group=new THREE.Group();
-  group.visible=false;
-  group.position.set(0,0,PARAMS.presentation.sceneZ);
-  scene.add(group);
+function createElement(tag,className,text){
+  const node=document.createElement(tag);
+  if(className)node.className=className;
+  if(text!=null)node.textContent=text;
+  return node;
+}
 
-  let targetOpen=0;
-  let openness=0;
+export function createCasePresentation(){
+  const root=createElement("section","case-overlay");
+  root.setAttribute("aria-hidden","true");
+
+  const backdrop=createElement("button","case-overlay__backdrop");
+  backdrop.type="button";
+  backdrop.setAttribute("aria-label","Case schließen");
+
+  const panel=createElement("article","case-overlay__panel");
+
+  const header=createElement("header","case-overlay__header");
+  const headerCopy=createElement("div","case-overlay__header-copy");
+  const kicker=createElement("div","case-overlay__kicker");
+  const title=createElement("h2","case-overlay__title");
+  const description=createElement("p","case-overlay__description");
+
+  const close=createElement("button","case-overlay__close","Close");
+  close.type="button";
+
+  headerCopy.append(kicker,title,description);
+  header.append(headerCopy,close);
+
+  const media=createElement("div","case-overlay__media");
+  const hero=createElement("div","case-overlay__hero");
+  const gallery=createElement("div","case-overlay__gallery");
+  media.append(hero,gallery);
+
+  panel.append(header,media);
+  root.append(backdrop,panel);
+  document.body.appendChild(root);
+
   let activeCase=null;
   let activeCaseIndex=0;
-  let generation=0;
-  let headline=null;
-  let videoState=null;
-  let images=[];
+  let openState=false;
+  let currentVideo=null;
 
-  function clear(){
-    generation++;
-    if(videoState){
-      videoState.video.pause();
-      videoState.video.removeAttribute("src");
-      videoState.video.load();
-      videoState.texture.dispose();
+  function clearMedia(){
+    if(currentVideo){
+      currentVideo.pause();
+      currentVideo.removeAttribute("src");
+      currentVideo.load();
+      currentVideo=null;
     }
-    disposeObject(group);
-    while(group.children.length)group.remove(group.children[0]);
-    headline=null;
-    videoState=null;
-    images=[];
+    hero.replaceChildren();
+    gallery.replaceChildren();
   }
 
-  async function build(caseData,index=activeCaseIndex){
-    clear();
-    const token=generation;
+  function addImage(entry,index,total){
+    const src=srcOf(entry);
+    if(!src)return;
+
+    const figure=createElement("figure","case-overlay__figure");
+    figure.style.setProperty("--i",String(index));
+    figure.style.setProperty("--count",String(total));
+
+    const img=document.createElement("img");
+    img.src=src;
+    img.alt=altOf(entry,activeCase?.title||"Case image");
+    img.loading=index<3?"eager":"lazy";
+    img.decoding="async";
+
+    figure.appendChild(img);
+    gallery.appendChild(figure);
+  }
+
+  function build(caseData,index){
     activeCase=caseData;
     activeCaseIndex=index;
 
-    if(document.fonts?.load){
-      try{await document.fonts.load('800 168px "Turret Road"');}catch{}
+    clearMedia();
+
+    kicker.textContent=`Case ${String(index+1).padStart(2,"0")}`;
+    title.textContent=caseData?.title||"Untitled";
+    description.textContent=caseData?.description||"";
+
+    const normalized=normalizeMedia(caseData);
+    const videoSrc=srcOf(normalized.video);
+    const imageEntries=normalized.images.filter(entry=>srcOf(entry));
+
+    if(videoSrc){
+      const video=document.createElement("video");
+      video.className="case-overlay__video";
+      video.src=videoSrc;
+      video.autoplay=true;
+      video.loop=true;
+      video.muted=true;
+      video.playsInline=true;
+      video.controls=true;
+      video.preload="metadata";
+      video.setAttribute("aria-label",caseData?.title||"Case video");
+      hero.appendChild(video);
+      currentVideo=video;
+      video.play().catch(()=>{});
+    }else if(imageEntries.length){
+      const first=imageEntries[0];
+      const img=document.createElement("img");
+      img.className="case-overlay__hero-image";
+      img.src=srcOf(first);
+      img.alt=altOf(first,caseData?.title||"Case image");
+      img.decoding="async";
+      hero.appendChild(img);
+    }else{
+      const empty=createElement("div","case-overlay__empty","No media");
+      hero.appendChild(empty);
     }
 
-    const media=normalizedMedia(caseData);
-    const palette=caseData.palette||["#fff","#74f7ff"];
-
-    if(media.video){
-      videoState=createVideoPlane(media.video,group);
-    }
-
-    const titleTexture=textTexture(caseData.title,caseData.description,palette);
-    const titleMaterial=new THREE.MeshBasicMaterial({
-      map:titleTexture,
-      transparent:true,
-      opacity:0,
-      depthWrite:false,
-      depthTest:false,
-      blending:THREE.AdditiveBlending,
-      toneMapped:false
-    });
-    headline=new THREE.Mesh(new THREE.PlaneGeometry(1,1),titleMaterial);
-    headline.renderOrder=120;
-    headline.position.set(0,0,.24);
-    headline.scale.set(PARAMS.presentation.headlineWidth,PARAMS.presentation.headlineHeight,1);
-    headline.userData.basePosition=headline.position.clone();
-    headline.userData.baseScale=headline.scale.clone();
-    group.add(headline);
-
-    const wanted=Math.min(
-      Math.max(media.images.length,PARAMS.presentation.placeholderImages),
-      PARAMS.presentation.maxImages
-    );
-
-    const sourceImages=media.images.length
-      ? Array.from({length:wanted},(_,i)=>media.images[i%media.images.length])
-      : Array.from({length:wanted},()=>null);
-
-    const seedBase=hashString(caseData.id||caseData.title||"case");
-
-    const loaded=await Promise.all(sourceImages.map((entry,i)=>imageTexture(entry,caseData,i)));
-    if(token!==generation)return;
-
-    loaded.forEach((loadedTexture,i)=>{
-      const angle=(i/wanted)*Math.PI*2+random01(seedBase+i*17)*.55;
-      const radial=THREE.MathUtils.lerp(
-        PARAMS.presentation.radiusMin,
-        PARAMS.presentation.radiusMax,
-        random01(seedBase+i*31)
-      );
-      const x=Math.cos(angle)*radial;
-      const y=Math.sin(angle)*radial*PARAMS.presentation.verticalRatio;
-      const z=PARAMS.presentation.imageZStart-i*PARAMS.presentation.imageDepthStep;
-      const width=THREE.MathUtils.lerp(
-        PARAMS.presentation.imageWidthMin,
-        PARAMS.presentation.imageWidthMax,
-        random01(seedBase+i*43)
-      );
-      const height=width/Math.max(.65,Math.min(2.1,loadedTexture.aspect));
-
-      const material=new THREE.MeshBasicMaterial({
-        map:loadedTexture.texture,
-        transparent:true,
-        opacity:0,
-        depthWrite:false,
-        depthTest:false,
-        toneMapped:false
-      });
-
-      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1),material);
-      mesh.renderOrder=110-i;
-      mesh.position.set(0,0,.05);
-      mesh.scale.set(.08,.08,1);
-      mesh.rotation.z=(random01(seedBase+i*59)-.5)*.16;
-
-      mesh.userData.targetPosition=new THREE.Vector3(x,y,z);
-      mesh.userData.targetScale=new THREE.Vector3(width,height,1);
-      mesh.userData.baseRotationZ=mesh.rotation.z;
-      mesh.userData.depthIndex=i/(Math.max(1,wanted-1));
-      mesh.userData.phase=random01(seedBase+i*71)*Math.PI*2;
-      group.add(mesh);
-      images.push(mesh);
-    });
+    const galleryEntries=videoSrc?imageEntries:imageEntries.slice(1);
+    galleryEntries.forEach((entry,i)=>addImage(entry,i,galleryEntries.length));
+    gallery.classList.toggle("is-empty",galleryEntries.length===0);
   }
 
   async function open(caseData,index=activeCaseIndex){
     if(!caseData)return;
-    activeCaseIndex=index;
-    group.visible=true;
-    targetOpen=1;
+    build(caseData,index);
+    openState=true;
+    root.classList.add("is-open");
+    root.setAttribute("aria-hidden","false");
     document.body.classList.add("case-presentation-open");
-    await build(caseData,index);
   }
 
-  function close(){
-    targetOpen=0;
+  function closeOverlay(){
+    openState=false;
+    root.classList.remove("is-open");
+    root.setAttribute("aria-hidden","true");
     document.body.classList.remove("case-presentation-open");
+    if(currentVideo)currentVideo.pause();
   }
 
   async function toggle(caseData,index=activeCaseIndex){
-    if(targetOpen>.5&&activeCase?.id===caseData?.id){
-      close();
+    if(openState&&activeCase?.id===caseData?.id){
+      closeOverlay();
       return;
     }
     await open(caseData,index);
   }
 
   function isOpen(){
-    return targetOpen>.5||openness>.08;
+    return openState;
   }
 
-  function update(dt,time,pointer,cameraMotion){
-    const target=targetOpen;
-    const speed=target>openness
-      ? PARAMS.presentation.openResponseMs
-      : PARAMS.presentation.closeResponseMs;
-    const alpha=1-Math.exp(-Math.max(dt,1)/speed);
-    openness=THREE.MathUtils.lerp(openness,target,alpha);
-
-    if(openness<.012&&target===0){
-      group.visible=false;
-      return;
-    }
-    group.visible=true;
-
-    const eased=target>0?easeOutCubic(openness):easeInOutCubic(openness);
-    const motion=cameraMotion?.motion||0;
-    const mx=cameraMotion?.motionX||0;
-    const my=cameraMotion?.motionY||0;
-    const vx=cameraMotion?.velocityX||0;
-    const vy=cameraMotion?.velocityY||0;
-
-    const frame=visual?.getCaseFrame?.(
-      activeCaseIndex,
-      visual?.lastState,
-      0,
-      0
-    );
-
-    const cameraRight=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
-    const cameraUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
-
-    const anchorTarget=frame
-      ? frame.target.clone().addScaledVector(frame.normal,PARAMS.presentation.anchorOffset)
-      : new THREE.Vector3(0,0,PARAMS.presentation.sceneZ);
-
-    anchorTarget
-      .addScaledVector(
-        cameraRight,
-        mx*PARAMS.presentation.groupReactionX+
-        pointer.x*PARAMS.presentation.pointerReactionX
-      )
-      .addScaledVector(
-        cameraUp,
-        my*PARAMS.presentation.groupReactionY+
-        pointer.y*PARAMS.presentation.pointerReactionY
-      );
-
-    group.position.lerp(anchorTarget,.055);
-
-    // Case media behaves like a local display field attached to the ribbon,
-    // always readable while the camera orbits the installation from any side.
-    group.quaternion.slerp(camera.quaternion,.09);
-
-    if(videoState){
-      const plane=videoState.plane;
-      plane.material.opacity=eased*PARAMS.presentation.videoOpacity;
-      const s=.92+eased*.08+motion*.025;
-      plane.scale.set(
-        plane.userData.baseScale.x*s,
-        plane.userData.baseScale.y*s,
-        1
-      );
-      plane.position.x=mx*.11;
-      plane.position.y=my*.08;
-      plane.position.z=plane.userData.basePosition.z;
-    }
-
-    if(headline){
-      headline.material.opacity=eased;
-      const s=.84+eased*.16+motion*.018;
-      headline.scale.set(
-        headline.userData.baseScale.x*s,
-        headline.userData.baseScale.y*s,
-        1
-      );
-      headline.position.x=-mx*.08;
-      headline.position.y=-my*.06;
-      headline.position.z=headline.userData.basePosition.z;
-    }
-
-    images.forEach((mesh,i)=>{
-      const depth=mesh.userData.depthIndex;
-      const reveal=clamp01((eased-depth*PARAMS.presentation.stagger)/Math.max(.001,1-depth*PARAMS.presentation.stagger));
-      const e=easeOutCubic(reveal);
-      const targetPos=mesh.userData.targetPosition;
-
-      const parallax=1+depth*1.65;
-      mesh.position.x=THREE.MathUtils.lerp(
-        mesh.position.x,
-        targetPos.x+mx*PARAMS.presentation.imageReactionX*parallax,
-        .045
-      );
-      mesh.position.y=THREE.MathUtils.lerp(
-        mesh.position.y,
-        targetPos.y+my*PARAMS.presentation.imageReactionY*parallax,
-        .045
-      );
-      mesh.position.z=THREE.MathUtils.lerp(
-        mesh.position.z,
-        targetPos.z+motion*PARAMS.presentation.imageReactionZ*(1-depth),
-        .04
-      );
-
-      const targetScale=mesh.userData.targetScale;
-      mesh.scale.x=THREE.MathUtils.lerp(mesh.scale.x,targetScale.x*e,.06);
-      mesh.scale.y=THREE.MathUtils.lerp(mesh.scale.y,targetScale.y*e,.06);
-      mesh.material.opacity=e*PARAMS.presentation.imageOpacity;
-
-      mesh.rotation.z=mesh.userData.baseRotationZ
-        +Math.sin(time*.34+mesh.userData.phase)*.018
-        +(vx-vy)*PARAMS.presentation.imageVelocityTilt*(1-depth);
-      mesh.rotation.x=THREE.MathUtils.lerp(mesh.rotation.x,-my*.055*parallax,.03);
-      mesh.rotation.y=THREE.MathUtils.lerp(mesh.rotation.y,mx*.07*parallax,.03);
-    });
+  function update(){
+    // DOM overlay intentionally bypasses Three.js postprocessing.
   }
+
+  backdrop.addEventListener("click",closeOverlay);
+  close.addEventListener("click",closeOverlay);
 
   return {
     open,
-    close,
+    close:closeOverlay,
     toggle,
     isOpen,
     update,
