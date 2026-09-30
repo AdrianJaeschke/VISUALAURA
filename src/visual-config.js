@@ -5,71 +5,64 @@ export const VISUAL_PARAMS={
   },
 
   bloom:{
-    strength:1.08,
-    radius:.68,
-    threshold:.60,
-    motionBoost:.24
+    strength:1.02,
+    radius:.62,
+    threshold:.78,
+    motionBoost:.20
+  },
+
+  postfx:{
+    dither:{
+      strength:.22,
+      scale:1.65,
+      levels:6
+    }
   },
 
   composition:{
     hero:{
-      size:2.85,
-      z:.30,
-      tiltX:-.04,
-      tiltY:.08
+      size:3.12,
+      z:.18,
+      tiltX:-.035,
+      tiltY:.065
     },
 
     moire:{
       count:3,
-      radius:2.05,
-      sizeMin:1.16,
-      sizeMax:1.66,
-      zStart:-.10,
-      zStep:-.16,
-      yRatio:.76,
-      rotationJitter:.22
+      radius:1.16,
+      sizeMin:1.34,
+      sizeMax:1.86,
+      zStart:.02,
+      zStep:-.07,
+      yRatio:.68,
+      rotationJitter:.16
     },
 
     aura:{
-      count:112,
-      radiusMin:2.55,
-      radiusMax:5.15,
-      ellipsoid:[1.0,.80,.88],
-      sizeMin:.075,
-      sizeMax:.38,
-      depthSpread:2.6,
-      radialPower:.82
+      count:124,
+      radiusMin:1.28,
+      radiusMax:3.18,
+      ellipsoid:[1.0,.77,.82],
+      sizeMin:.07,
+      sizeMax:.36,
+      depthSpread:1.22,
+      radialPower:1.18
     },
 
     outerWire:{
-      size:8.15,
-      z:-.62,
-      tubeRadius:.020,
-      tiltX:.02,
-      tiltY:-.06,
-      tiltZ:.08,
-      darkColor:"#0b0c10",
-      emissiveColor:"#020305",
-      emissiveIntensity:.018,
-      metalness:.90,
-      roughness:.26,
-      clearcoat:.84,
-      clearcoatRoughness:.18
-    }
-  },
-
-  dither:{
-    hero:{
-      strength:.09,
-      scale:2.0
-    },
-    moire:{
-      strength:.34,
-      scale:1.55
-    },
-    aura:{
-      strength:.20,
-      scale:2.4
+      size:6.35,
+      z:-.24,
+      tubeRadius:.018,
+      tiltX:.015,
+      tiltY:-.045,
+      tiltZ:.055,
+      color:"#ffffff",
+      emissiveColor:"#ffffff",
+      emissiveIntensity:0,
+      metalness:.82,
+      roughness:.23,
+      clearcoat:.92,
+      clearcoatRoughness:.10
     }
   },
 
@@ -83,36 +76,36 @@ export const VISUAL_PARAMS={
     },
 
     hero:{
-      xPush:.34,
-      yPush:.26,
-      zPush:.42,
-      velocityTilt:1.35,
-      scalePulse:.045
+      xPush:.30,
+      yPush:.23,
+      zPush:.36,
+      velocityTilt:1.18,
+      scalePulse:.038
     },
 
     moire:{
-      xPush:.20,
-      yPush:.16,
-      zPush:.24,
-      velocityTilt:.72,
-      scalePulse:.025,
+      xPush:.17,
+      yPush:.14,
+      zPush:.20,
+      velocityTilt:.62,
+      scalePulse:.020,
       lag:.018
     },
 
     aura:{
-      xPush:.13,
-      yPush:.10,
-      zPush:.17,
-      velocityTilt:.36,
-      scalePulse:.018,
+      xPush:.11,
+      yPush:.09,
+      zPush:.14,
+      velocityTilt:.31,
+      scalePulse:.015,
       lag:.012
     },
 
     outerWire:{
-      xPush:.055,
-      yPush:.04,
-      velocityTilt:.12,
-      scalePulse:.008,
+      xPush:.045,
+      yPush:.035,
+      velocityTilt:.10,
+      scalePulse:.006,
       lag:.008
     }
   },
