@@ -64,7 +64,7 @@ el("case-title").addEventListener("click",async e=>{
 });
 el("case-kicker").addEventListener("click",async e=>{
   e.stopPropagation();
-  await presentation.toggle(CASES[activeCase]);
+  await presentation.toggle(CASES[activeCase],activeCase);
 });
 
 const updatePointer=(x,y)=>{targetPointer.x=x/innerWidth*2-1;targetPointer.y=-(y/innerHeight*2-1)};
