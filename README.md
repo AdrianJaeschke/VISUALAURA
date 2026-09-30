@@ -2,28 +2,94 @@
 
 Interaktive Portfolio-Installation auf Basis von Three.js.
 
-## Konzept
+## Aktueller Stand
 
-Die Website übersetzt Case-Daten wie Jahr, Location, Disziplinen, Tags, Farbwelt, Intensität und Komplexität in eine visuelle Signatur.
+Die Installation ist jetzt modular aufgebaut und übersetzt Case-Daten in eine kantige, triangulierte visuelle Signatur.
 
-- **Desktop:** Maus + Scroll steuern die Installation, die Webcam speist Bewegung und Reflexionen.
-- **Mobile:** Touch + Device Orientation steuern die Installation, die Kamera wird zum räumlichen Hintergrund.
-- **WebXR:** Wenn `immersive-ar` unterstützt wird, kann die Installation als AR-Szene gestartet werden.
-- **Cases:** Werden derzeit als Demo-Daten im Frontend interpretiert und können später direkt aus einem CMS/API kommen.
+### Visuelle Layer
+
+- dunkle, facettierte Low-Poly-Geometrie
+- Triangle-Wireframe + zusätzliche Edge-Struktur
+- irisierende Highlights
+- Zebra- und Moiré-Shader
+- leuchtende Datenlinien
+- Case-Headlines direkt in der 3D-Struktur
+- kontrollierte Pixel-Glitches und Scanline-Artefakte
+- Webcam ausschließlich als Textur/Reflexion im Objekt
+- extrem unscharfe Kamerabewegung im Hintergrund
+
+### Interaktion
+
+- Desktop: Maus + Scroll + optionale Webcam
+- Mobile: Touch + Device Orientation + optionale Kamera
+- Case-Wechsel verändert Form, Farbe, Moiré, Glitch, Licht und Headlines
+
+## Struktur
+
+```
+index.html
+styles.css
+src/
+  main.js
+  cases.js
+  cms.js
+  interpreter.js
+  camera-input.js
+  scene.js
+```
+
+### Dateien
+
+- `src/main.js` — App-State, Eingabe, Case-Wechsel, Animation
+- `src/cases.js` — lokale Demo-Daten
+- `src/cms.js` — Adapter für ein späteres `/api/cases`
+- `src/interpreter.js` — übersetzt Case-Daten in visuelle Parameter
+- `src/camera-input.js` — Webcam-Stream, reduzierte Video-Textur und Motion-Analyse
+- `src/scene.js` — Three.js-Szene, Shader, Wireframe, Flow-Lines und Headline-Struktur
+
+## CMS/API-Datenmodell
+
+Erwartet wird pro Case ungefähr:
+
+```js
+{
+  id: "signal-garden",
+  slug: "signal-garden",
+  title: "Signal Garden",
+  year: 2026,
+  location: {
+    city: "Munich",
+    country: "DE",
+    lat: 48.137,
+    lng: 11.575
+  },
+  disciplines: ["Spatial", "Digital"],
+  tags: ["Realtime", "Data", "Light"],
+  palette: ["#74f7ff", "#7b69ff", "#ff4ecf"],
+  intensity: 0.84,
+  complexity: 0.78,
+  featured: true,
+  hero: {
+    image: "/media/signal-garden.jpg",
+    video: "/media/signal-garden.mp4"
+  }
+}
+```
+
+Wenn `/api/cases` nicht erreichbar ist, fällt die App automatisch auf `src/cases.js` zurück. Menschen lieben resiliente Systeme, meist nachdem sie zuerst ein fragiles gebaut haben.
 
 ## Visual Mapping
 
-- Jahr → Morphing
+- Jahr → Morphing / strukturelle Entwicklungsstufe
 - Location → Rotation / Tilt
-- Disziplinen → Metadaten
 - Tags → Glitch-Verhalten
-- Palette → Licht, Wireframe und Datenlinien
+- Palette → Wireframe, Licht, Headlines und Flow-Lines
 - Intensität → Lichtstärke / Dynamik
-- Komplexität → Linien- und Partikeldichte
+- Komplexität → Dichte, Moiré und Linienstruktur
 
-## Lokaler Start
+## Lokal starten
 
-Die Kamera benötigt einen sicheren Kontext. Lokal daher über einen HTTP-Server starten, z. B.:
+Die Kamera benötigt einen sicheren Kontext. Lokal reicht `localhost`:
 
 ```bash
 python3 -m http.server 8080
@@ -33,8 +99,8 @@ Dann `http://localhost:8080` öffnen.
 
 ## Nächste Schritte
 
-1. Case-Daten aus einem Headless CMS/API laden.
-2. Hero-/Case-Bilder als dynamische Texturen integrieren.
-3. Case-Nodes räumlich anklickbar machen.
-4. AR-Hit-Testing für Platzierung im Raum ergänzen.
-5. Shader für stärkere Glitch-, RGB-Split- und irisierende Effekte ausbauen.
+1. echtes Backend/CMS an `/api/cases` anbinden
+2. räumliche, anklickbare Case-Nodes ergänzen
+3. WebXR-Hit-Testing für echte AR-Platzierung ergänzen
+4. Shader-Performance auf Mobile weiter optimieren
+5. Case-Medien als zusätzliche dynamische Texturen integrieren
