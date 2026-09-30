@@ -530,7 +530,14 @@ export function createVisualScene(stage,cases,videoTexture){
   };
 }
 
-export function updateVisualScene(v,time,state,pointer,motion,activeCase){
+export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
+  const motion=cameraMotion.motion||0;
+  const humanX=cameraMotion.motionX||0;
+  const humanY=cameraMotion.motionY||0;
+  const humanVX=cameraMotion.velocityX||0;
+  const humanVY=cameraMotion.velocityY||0;
+  const humanCX=cameraMotion.centroidX||0;
+  const humanCY=cameraMotion.centroidY||0;
   const {
     root,reflectiveMat,moireMat,
     largeTriangles,largeWireRings,
@@ -541,9 +548,17 @@ export function updateVisualScene(v,time,state,pointer,motion,activeCase){
     key,fill,back
   }=v;
 
-  root.rotation.x=THREE.MathUtils.lerp(root.rotation.x,pointer.y*.18+state.tiltBias*.12,.035);
-  root.rotation.y=THREE.MathUtils.lerp(root.rotation.y,pointer.x*.24+state.rotationBias*.035,.035);
-  root.rotation.z=Math.sin(time*.13)*.025;
+  root.rotation.x=THREE.MathUtils.lerp(
+    root.rotation.x,
+    pointer.y*.14+state.tiltBias*.12-humanY*.22,
+    .04
+  );
+  root.rotation.y=THREE.MathUtils.lerp(
+    root.rotation.y,
+    pointer.x*.18+state.rotationBias*.035+humanX*.3,
+    .04
+  );
+  root.rotation.z=Math.sin(time*.13)*.025+humanVX*.9;
 
   reflectiveMat.uniforms.uTime.value=time;
   reflectiveMat.uniforms.uMotion.value=motion;
@@ -565,14 +580,16 @@ export function updateVisualScene(v,time,state,pointer,motion,activeCase){
     const scaleBase=tri.userData.baseScale;
     const depth=tri.userData.depthBand;
 
-    tri.position.x=base.x+Math.sin(time*.18+i)*.04;
-    tri.position.y=base.y+Math.cos(time*.16+i*.7)*.04;
-    tri.position.z=base.z+Math.sin(time*.12+i*.35)*(.05+.02*depth);
+    const proximity=Math.max(0,1-Math.hypot(base.x-humanCX*3.2,base.y-humanCY*2.4)/4.8);
+    const humanPush=motion*proximity;
+    tri.position.x=base.x+Math.sin(time*.18+i)*.04+humanX*(.18+.32*proximity);
+    tri.position.y=base.y+Math.cos(time*.16+i*.7)*.04+humanY*(.14+.25*proximity);
+    tri.position.z=base.z+Math.sin(time*.12+i*.35)*(.05+.02*depth)+humanPush*.34;
 
-    tri.rotation.x=tri.userData.baseRot.x+Math.sin(time*.11+i)*.04;
-    tri.rotation.y=tri.userData.baseRot.y+Math.cos(time*.09+i)*.04;
+    tri.rotation.x=tri.userData.baseRot.x+Math.sin(time*.11+i)*.04-humanVY*(1.8+.06*i);
+    tri.rotation.y=tri.userData.baseRot.y+Math.cos(time*.09+i)*.04+humanVX*(1.8+.06*i);
 
-    const pulse=1+motion*.03+Math.sin(time*.35+i)*.01;
+    const pulse=1+motion*(.035+.055*proximity)+Math.sin(time*.35+i)*.01;
     tri.scale.setScalar(scaleBase*pulse);
   });
 
@@ -588,22 +605,33 @@ export function updateVisualScene(v,time,state,pointer,motion,activeCase){
   const temp=new THREE.Object3D();
   smallSeeds.forEach((s,i)=>{
     temp.position.copy(s.position);
-    temp.position.z+=Math.sin(time*s.speed+i)*.08;
+    const sx=s.position.x-humanCX*4.1;
+    const sy=s.position.y-humanCY*3.0;
+    const near=Math.max(0,1-Math.hypot(sx,sy)/5.4);
+    temp.position.x+=humanX*near*.34;
+    temp.position.y+=humanY*near*.28;
+    temp.position.z+=Math.sin(time*s.speed+i)*.08+motion*near*.38;
     temp.rotation.set(
-      s.rotation.x+time*.05*s.speed,
-      s.rotation.y-time*.04*s.speed,
+      s.rotation.x+time*.05*s.speed-humanVY*2.2*near,
+      s.rotation.y-time*.04*s.speed+humanVX*2.2*near,
       s.rotation.z+Math.sin(time*.18+i)*.06
     );
-    temp.scale.setScalar(s.scale*(1+Math.sin(time*.4+i)*.035*state.density));
+    temp.scale.setScalar(s.scale*(1+Math.sin(time*.4+i)*.035*state.density+motion*near*.12));
     temp.updateMatrix();
     smallMesh.setMatrixAt(i,temp.matrix);
   });
   smallMesh.instanceMatrix.needsUpdate=true;
 
   tetraMeshes.forEach((tetra,i)=>{
-    tetra.position.z=tetra.userData.basePos.z+Math.sin(time*.24+i)*.12;
-    tetra.rotation.x=tetra.userData.baseRot.x+time*.03;
-    tetra.rotation.y=tetra.userData.baseRot.y-time*.025;
+    const base=tetra.userData.basePos;
+    const dx=base.x-humanCX*4.5;
+    const dy=base.y-humanCY*3.2;
+    const near=Math.max(0,1-Math.hypot(dx,dy)/6.2);
+    tetra.position.x=base.x+humanX*near*.5;
+    tetra.position.y=base.y+humanY*near*.4;
+    tetra.position.z=base.z+Math.sin(time*.24+i)*.12+motion*near*.55;
+    tetra.rotation.x=tetra.userData.baseRot.x+time*.03-humanVY*3.2*near;
+    tetra.rotation.y=tetra.userData.baseRot.y-time*.025+humanVX*3.2*near;
   });
 
   saw.rotation.y=Math.sin(time*.08)*.08;
@@ -612,12 +640,14 @@ export function updateVisualScene(v,time,state,pointer,motion,activeCase){
   sawMat.color.copy(new THREE.Color().lerpColors(state.palette[0],new THREE.Color(0xffffff),.78));
 
   haloGroups.forEach((g,i)=>{
-    g.rotation.z+=(i%2?1:-1)*(.00055+i*.00022);
-    g.position.x=Math.sin(time*.08+i)*.14*(i+1);
-    g.position.y=Math.cos(time*.07+i*.7)*.08*(i+1);
+    g.rotation.z+=(i%2?1:-1)*(.00055+i*.00022)+(humanVX-humanVY)*.018*(i+1);
+    g.position.x=Math.sin(time*.08+i)*.14*(i+1)+humanX*.24*(i+1);
+    g.position.y=Math.cos(time*.07+i*.7)*.08*(i+1)+humanY*.18*(i+1);
+    const depthPulse=1+motion*.035*(i+1);
+    g.scale.setScalar((1.28+i*.36)*depthPulse);
   });
 
-  networkMat.opacity=.045+state.density*.055+motion*.045;
+  networkMat.opacity=.045+state.density*.055+motion*.12;
   networkMat.color.copy(state.palette[0]).lerp(new THREE.Color(0xffffff),.72);
 
   headlines.forEach((g,gi)=>{
@@ -638,7 +668,12 @@ export function updateVisualScene(v,time,state,pointer,motion,activeCase){
   fill.color.copy(state.palette[1]||state.palette[0]);
   back.color.copy(state.palette[2]||state.palette[1]||state.palette[0]);
 
-  key.intensity=9+state.intensity*13+motion*7;
-  fill.intensity=6+state.glitch*10;
-  back.intensity=5+state.moire*5;
+  key.position.x=5+humanX*3.5;
+  key.position.y=3.5+humanY*2.4;
+  fill.position.x=-5-humanX*2.2;
+  fill.position.y=-3-humanY*1.8;
+
+  key.intensity=9+state.intensity*13+motion*14;
+  fill.intensity=6+state.glitch*10+motion*7;
+  back.intensity=5+state.moire*5+motion*5;
 }
