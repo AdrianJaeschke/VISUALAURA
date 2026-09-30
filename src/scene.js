@@ -134,7 +134,7 @@ function createRibbonGeometry(){
   return {geometry:geo,centers};
 }
 
-function createBandMaterial(reflectionTexture){
+function createBandMaterial(){
   return new THREE.ShaderMaterial({
     side:THREE.DoubleSide,
     transparent:true,
@@ -160,8 +160,6 @@ function createBandMaterial(reflectionTexture){
       uFocusWidth:{value:P.material.band.focusWidth},
       uFocusColorBoost:{value:P.material.band.focusColorBoost},
       uFocusReflection:{value:P.material.band.focusReflection},
-      uReflectionMap:{value:reflectionTexture||null},
-      uReflectionActive:{value:0},
       uDepth:{value:1},
       uCaseTwist:{value:0},
       uIridescence:{value:1}
@@ -211,8 +209,6 @@ function createBandMaterial(reflectionTexture){
       uniform float uFresnelGlow,uWhiteSpecular,uSpeed,uIridescence;
       uniform float uPearlStrength,uFilmThickness,uWhiteness,uSpectralSaturation;
       uniform float uFocusPhase,uFocusWidth,uFocusColorBoost,uFocusReflection;
-      uniform float uReflectionActive;
-      uniform sampler2D uReflectionMap;
       uniform vec3 uA,uB,uC;
 
       varying vec3 vBary;
@@ -302,23 +298,27 @@ function createBandMaterial(reflectionTexture){
         col=mix(col,focusIris,clamp(focusColor*.34,0.,.62));
         col+=pearl*focusColor*.14;
 
-        // Reflection coordinates are derived from the view vector, so the live camera shifts with viewpoint.
+        // Procedural pearl reflection in the focus area, no webcam texture required.
         vec3 reflectedDir=reflect(-V,N);
-        vec2 reflectionUv=clamp(
-          vec2(.5+reflectedDir.x*.42,.5-reflectedDir.y*.42),
-          vec2(.02),
-          vec2(.98)
+        float reflectionSweep=.5+.5*cos(
+          reflectedDir.x*4.2+
+          reflectedDir.y*3.1+
+          reflectedDir.z*2.6+
+          vPhase*8.4
         );
-        vec3 reflected=texture2D(uReflectionMap,reflectionUv).rgb;
+        vec3 reflectionTint=mix(
+          vec3(.96,.985,1.0),
+          focusIris,
+          .18+.28*reflectionSweep
+        );
         float reflectionMask=
           focusMask*
           uFocusReflection*
-          uReflectionActive*
-          (.32+fres*.68);
+          (.28+fres*.72);
         col=mix(
           col,
-          reflected*1.08+focusIris*.16+vec3(.06),
-          clamp(reflectionMask*.62,0.,.76)
+          reflectionTint*(1.02+reflectionSweep*.22),
+          clamp(reflectionMask*.44,0.,.58)
         );
 
         float whiteSpec=pow(max(cosTheta,0.),18.)*uWhiteSpecular;
@@ -814,7 +814,7 @@ function createGlobalDitherPass(){
   });
 }
 
-export async function createVisualScene(stage,cases,videoTexture){
+export async function createVisualScene(stage,cases){
   ACTIVE_SEED=P.generation.randomizeEachLoad
     ? Math.random()*100000
     : P.generation.seed;
@@ -873,7 +873,7 @@ export async function createVisualScene(stage,cases,videoTexture){
     "centripetal",
     .5
   );
-  const bandMaterial=createBandMaterial(videoTexture);
+  const bandMaterial=createBandMaterial();
   const bandMesh=new THREE.Mesh(bandGeometry,bandMaterial);
   bandMesh.renderOrder=4;
   root.add(bandMesh);
@@ -1229,9 +1229,6 @@ export function updateVisualScene(
   bandMaterial.uniforms.uFocusWidth.value=P.material.band.focusWidth;
   bandMaterial.uniforms.uFocusColorBoost.value=P.material.band.focusColorBoost;
   bandMaterial.uniforms.uFocusReflection.value=P.material.band.focusReflection;
-  bandMaterial.uniforms.uReflectionActive.value=cameraMotion.active
-    ?THREE.MathUtils.clamp(.45+(cameraMotion.presence||0)*.75,0,1)
-    :0;
 
   bandWireMaterial.uniforms.uTime.value=time;
   bandWireMaterial.uniforms.uMotion.value=motion;
