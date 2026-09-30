@@ -8,15 +8,18 @@ Die Installation ist jetzt modular aufgebaut und übersetzt Case-Daten in eine k
 
 ### Visuelle Layer
 
-- dunkle, facettierte Low-Poly-Geometrie
-- Triangle-Wireframe + zusätzliche Edge-Struktur
+- kein zentraler Blob mehr: ein räumliches Feld aus großen und hunderten kleinen Dreiecken
+- große Dreiecke spiegeln den Webcam-Input
+- verschachtelte Triangle-Ringe und sägezahnartige Dreiecksketten
+- Triangle-Wireframe + irisierende Lichtkanten
 - irisierende Highlights
-- Zebra- und Moiré-Shader
+- Schwarz-Weiß-Moiré und Zebra-Shader mit irisierenden Kanten
 - leuchtende Datenlinien
 - Case-Headlines direkt in der 3D-Struktur
 - kontrollierte Pixel-Glitches und Scanline-Artefakte
-- Webcam ausschließlich als Textur/Reflexion im Objekt
+- Webcam ausschließlich auf den großen reflektierenden Dreiecksflächen
 - extrem unscharfe Kamerabewegung im Hintergrund
+- Halo-/Echo-Ebenen duplizieren Dreiecksstrukturen in die Tiefe
 
 ### Interaktion
 
