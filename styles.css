@@ -33,3 +33,6 @@ body.camera-live #bg-video{opacity:.10}
 button.primary{color:#050507;background:var(--fg);border-color:var(--fg)}button:hover{transform:translateY(-1px)}
 .case-dots{position:fixed;z-index:12;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}.case-dot{width:6px;height:6px;border-radius:999px;border:0;padding:0;background:rgba(255,255,255,.28);transition:width .25s ease,background .25s ease}.case-dot.active{width:28px;background:#fff}
 @media(max-width:760px){.hud{padding:14px}.case-title{font-size:clamp(36px,13vw,64px)}.help{display:none}.case-meta{max-width:85vw}.panel{border-radius:20px;padding:22px}.brand strong{font-size:13px}.mode{font-size:9px}}
+.case-title,.case-kicker{cursor:pointer;transition:opacity .25s ease,text-shadow .25s ease}
+.case-title:hover,.case-kicker:hover{opacity:.86;text-shadow:0 0 18px rgba(119,247,255,.16)}
+body.case-presentation-open .case-meta{opacity:.78}
