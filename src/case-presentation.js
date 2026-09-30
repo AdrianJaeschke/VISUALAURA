@@ -239,7 +239,7 @@ function disposeObject(object){
   });
 }
 
-export function createCasePresentation(scene,camera){
+export function createCasePresentation(scene,camera,visual){
   const group=new THREE.Group();
   group.visible=false;
   group.position.set(0,0,PARAMS.presentation.sceneZ);
@@ -248,6 +248,7 @@ export function createCasePresentation(scene,camera){
   let targetOpen=0;
   let openness=0;
   let activeCase=null;
+  let activeCaseIndex=0;
   let generation=0;
   let headline=null;
   let videoState=null;
@@ -268,10 +269,11 @@ export function createCasePresentation(scene,camera){
     images=[];
   }
 
-  async function build(caseData){
+  async function build(caseData,index=activeCaseIndex){
     clear();
     const token=generation;
     activeCase=caseData;
+    activeCaseIndex=index;
 
     if(document.fonts?.load){
       try{await document.fonts.load('800 168px "Turret Road"');}catch{}
@@ -358,12 +360,13 @@ export function createCasePresentation(scene,camera){
     });
   }
 
-  async function open(caseData){
+  async function open(caseData,index=activeCaseIndex){
     if(!caseData)return;
+    activeCaseIndex=index;
     group.visible=true;
     targetOpen=1;
     document.body.classList.add("case-presentation-open");
-    await build(caseData);
+    await build(caseData,index);
   }
 
   function close(){
@@ -371,12 +374,12 @@ export function createCasePresentation(scene,camera){
     document.body.classList.remove("case-presentation-open");
   }
 
-  async function toggle(caseData){
+  async function toggle(caseData,index=activeCaseIndex){
     if(targetOpen>.5&&activeCase?.id===caseData?.id){
       close();
       return;
     }
-    await open(caseData);
+    await open(caseData,index);
   }
 
   function isOpen(){
@@ -404,20 +407,37 @@ export function createCasePresentation(scene,camera){
     const vx=cameraMotion?.velocityX||0;
     const vy=cameraMotion?.velocityY||0;
 
-    group.position.x=THREE.MathUtils.lerp(
-      group.position.x,
-      mx*PARAMS.presentation.groupReactionX+pointer.x*PARAMS.presentation.pointerReactionX,
-      .025
+    const frame=visual?.getCaseFrame?.(
+      activeCaseIndex,
+      visual?.lastState,
+      0,
+      0
     );
-    group.position.y=THREE.MathUtils.lerp(
-      group.position.y,
-      my*PARAMS.presentation.groupReactionY+pointer.y*PARAMS.presentation.pointerReactionY,
-      .025
-    );
-    group.position.z=PARAMS.presentation.sceneZ;
 
-    group.rotation.x=THREE.MathUtils.lerp(group.rotation.x,-my*.055-vy*.8,.02);
-    group.rotation.y=THREE.MathUtils.lerp(group.rotation.y,mx*.075+vx*.8,.02);
+    const cameraRight=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+    const cameraUp=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+
+    const anchorTarget=frame
+      ? frame.target.clone().addScaledVector(frame.normal,PARAMS.presentation.anchorOffset)
+      : new THREE.Vector3(0,0,PARAMS.presentation.sceneZ);
+
+    anchorTarget
+      .addScaledVector(
+        cameraRight,
+        mx*PARAMS.presentation.groupReactionX+
+        pointer.x*PARAMS.presentation.pointerReactionX
+      )
+      .addScaledVector(
+        cameraUp,
+        my*PARAMS.presentation.groupReactionY+
+        pointer.y*PARAMS.presentation.pointerReactionY
+      );
+
+    group.position.lerp(anchorTarget,.055);
+
+    // Case media behaves like a local display field attached to the ribbon,
+    // always readable while the camera orbits the installation from any side.
+    group.quaternion.slerp(camera.quaternion,.09);
 
     if(videoState){
       const plane=videoState.plane;
@@ -482,5 +502,13 @@ export function createCasePresentation(scene,camera){
     });
   }
 
-  return {open,close,toggle,isOpen,update,get activeCase(){return activeCase;}};
+  return {
+    open,
+    close,
+    toggle,
+    isOpen,
+    update,
+    get activeCase(){return activeCase;},
+    get activeCaseIndex(){return activeCaseIndex;}
+  };
 }
