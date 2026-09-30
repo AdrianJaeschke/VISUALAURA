@@ -293,3 +293,37 @@ Live regelbar sind unter anderem:
 Strukturelle Werte wie Polygon-Anzahl, Radius oder Wire-Größe sind mit **↻** markiert. Nach Änderung genügt **REGENERATE**, die Werte werden in LocalStorage gespeichert und die Skulptur mit diesen Einstellungen neu aufgebaut.
 
 **RESET SAVED** entfernt die lokalen Overrides und lädt die Projekt-Defaults.
+
+
+## 1 / 3 / MANY / 1 Composition
+
+Die Hauptskulptur ist jetzt bewusst stark vereinfacht:
+
+1. **1 großes zentrales Spiegel-Dreieck**  
+   Webcam-Textur, Chrome-/Fresnel-Lichtkante und leichtes Ordered Dithering.
+
+2. **3 Moiré-Dreiecke**  
+   Exakt drei größere Schwarz-Weiß-Moiré-Flächen um das Hero-Dreieck, mit stärkerem Dither.
+
+3. **Viele kleine irisierende Aura-Dreiecke**  
+   Parametrisch außen herum verteilt, dynamische caseabhängige Irisierung, leichter Dither und subtile Webcam-Reaktion.
+
+4. **1 riesiges äußeres Triangle-Wireframe**  
+   Anthrazit/schwarz, metallisch und glossy, mit sehr wenig Eigen-Glow.
+
+Die Dither-Implementierung ist shaderbasiert und nutzt ein 4×4 Ordered/Bayer Pattern. Sie liegt direkt in den Hero-, Moiré- und Iridescent-Fragment-Shadern und ist in der PARAMS-Konsole separat regelbar.
+
+Die relevanten Parameter stehen in `src/visual-config.js` unter:
+
+```js
+composition.hero
+composition.moire
+composition.aura
+composition.outerWire
+dither.hero
+dither.moire
+dither.aura
+material
+reaction
+bloom
+```
