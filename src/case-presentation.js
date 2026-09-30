@@ -321,11 +321,13 @@ export function createCasePresentation(scene,camera){
     if(!caseData)return;
     group.visible=true;
     targetOpen=1;
+    document.body.classList.add("case-presentation-open");
     await build(caseData);
   }
 
   function close(){
     targetOpen=0;
+    document.body.classList.remove("case-presentation-open");
   }
 
   async function toggle(caseData){
