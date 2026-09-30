@@ -3,20 +3,36 @@ import { EffectComposer } from "https://unpkg.com/three@0.164.1/examples/jsm/pos
 import { RenderPass } from "https://unpkg.com/three@0.164.1/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "https://unpkg.com/three@0.164.1/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "https://unpkg.com/three@0.164.1/examples/jsm/postprocessing/OutputPass.js";
-import {VISUAL_PARAMS as P} from "./visual-config.js";
+import { VISUAL_PARAMS as P } from "./visual-config.js";
 
-const SCENE_SEED=P.generation.randomizeEachLoad
-  ? Math.random()*100000
-  : P.generation.seed;
+const Z_AXIS=new THREE.Vector3(0,0,1);
+const Y_AXIS=new THREE.Vector3(0,1,0);
+const SCENE_SEED=P.generation.randomizeEachLoad?Math.random()*100000:P.generation.seed;
 
-function rand(seedA,seedB=1){
+function rand(a,b=1){
   return Math.abs(
-    Math.sin((seedA+SCENE_SEED)*12.9898+(seedB+SCENE_SEED*.017)*78.233)*43758.5453
+    Math.sin((a+SCENE_SEED)*12.9898+(b+SCENE_SEED*.017)*78.233)*43758.5453
   )%1;
 }
 
-function radialFalloff(index,power=3.2,maxRadius=5){
-  return Math.pow(rand(index,2.7),power)*maxRadius;
+function fibonacciDirection(i,count){
+  const golden=Math.PI*(3-Math.sqrt(5));
+  const y=1-(i/Math.max(1,count-1))*2;
+  const radius=Math.sqrt(Math.max(0,1-y*y));
+  const theta=golden*i+SCENE_SEED*.00013;
+  return new THREE.Vector3(
+    Math.cos(theta)*radius,
+    y,
+    Math.sin(theta)*radius
+  ).normalize();
+}
+
+function ellipsoidPoint(dir,radius,ellipsoid){
+  return new THREE.Vector3(
+    dir.x*radius*ellipsoid[0],
+    dir.y*radius*ellipsoid[1],
+    dir.z*radius*ellipsoid[2]
+  );
 }
 
 function triangleGeometry(){
@@ -41,103 +57,109 @@ function triangleGeometry(){
   return geo;
 }
 
-function triangleLineGeometry(scale=1){
-  const h=Math.sqrt(3)/2;
-  const p0=new THREE.Vector3(0,h*2/3,0).multiplyScalar(scale);
-  const p1=new THREE.Vector3(-.5,-h/3,0).multiplyScalar(scale);
-  const p2=new THREE.Vector3(.5,-h/3,0).multiplyScalar(scale);
-  return new THREE.BufferGeometry().setFromPoints([p0,p1,p1,p2,p2,p0]);
+function orientToNormal(object,normal,twist=0){
+  object.quaternion.setFromUnitVectors(Z_AXIS,normal.clone().normalize());
+  object.rotateZ(twist);
 }
 
-function headlineTexture(text,a,b){
-  const c=document.createElement("canvas");
-  c.width=1024;c.height=256;
-  const x=c.getContext("2d");
-  x.clearRect(0,0,c.width,c.height);
+function createScaffoldGeometry(){
+  const count=P.layers.scaffold.pointCount;
+  const outer=[];
+  const inner=[];
 
-  const g=x.createLinearGradient(0,0,c.width,0);
-  g.addColorStop(0,a);g.addColorStop(.55,"#ffffff");g.addColorStop(1,b);
-
-  x.font='700 112px "Turret Road",Arial,sans-serif';
-  x.textBaseline="middle";
-  x.fillStyle=g;
-  x.shadowColor=a;
-  x.shadowBlur=24;
-  x.fillText(text.toUpperCase(),24,128);
-
-  x.shadowBlur=0;
-  x.font='600 28px "Turret Road",Arial,sans-serif';
-  x.fillStyle="rgba(255,255,255,.5)";
-  x.fillText(text.toUpperCase().replace(/\s+/g," / "),30,42);
-
-  const tex=new THREE.CanvasTexture(c);
-  tex.colorSpace=THREE.SRGBColorSpace;
-  return tex;
-}
-
-function edgeHeadlineTexture(text,color){
-  const c=document.createElement("canvas");
-  c.width=1536;c.height=128;
-  const x=c.getContext("2d");
-  x.clearRect(0,0,c.width,c.height);
-  x.font='700 62px "Turret Road",Arial,sans-serif';
-  x.textBaseline="middle";
-  x.fillStyle=color;
-  x.shadowColor=color;
-  x.shadowBlur=14;
-  x.fillText((" "+text.toUpperCase()+"   ").repeat(3),12,64);
-  const tex=new THREE.CanvasTexture(c);
-  tex.colorSpace=THREE.SRGBColorSpace;
-  tex.wrapS=THREE.RepeatWrapping;
-  return tex;
-}
-
-export async function createVisualScene(stage,cases,videoTexture){
-  if(document.fonts?.load){
-    try{await document.fonts.load('700 112px "Turret Road"');}catch{}
+  for(let i=0;i<count;i++){
+    const d=fibonacciDirection(i,count);
+    outer.push(ellipsoidPoint(d,P.layers.scaffold.radius,P.layers.scaffold.ellipsoid));
+    inner.push(ellipsoidPoint(
+      d,
+      P.layers.scaffold.radius*P.layers.scaffold.innerRadius,
+      P.layers.scaffold.ellipsoid
+    ));
   }
 
-  const scene=new THREE.Scene();
-  scene.fog=new THREE.FogExp2(0x030306,.032);
+  const positions=[];
+  const seen=new Set();
 
-  const camera=new THREE.PerspectiveCamera(52,innerWidth/innerHeight,.1,120);
-  camera.position.set(0,0,8.4);
+  const addEdge=(a,b,layer)=>{
+    if(a===b)return;
+    const min=Math.min(a,b);
+    const max=Math.max(a,b);
+    const key=layer+":"+min+":"+max;
+    if(seen.has(key))return;
+    seen.add(key);
 
-  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-  renderer.setSize(innerWidth,innerHeight);
-  renderer.outputColorSpace=THREE.SRGBColorSpace;
-  renderer.toneMapping=THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.32;
-  stage.appendChild(renderer.domElement);
+    const source=layer==="outer"?outer:inner;
+    const p0=source[a];
+    const p1=source[b];
+    positions.push(p0.x,p0.y,p0.z,p1.x,p1.y,p1.z);
+  };
 
-  const composer=new EffectComposer(renderer);
-  composer.setPixelRatio(Math.min(devicePixelRatio,2));
-  composer.setSize(innerWidth,innerHeight);
+  for(let i=0;i<count;i++){
+    const ranked=[];
+    for(let j=0;j<count;j++){
+      if(i===j)continue;
+      ranked.push({j,d:outer[i].distanceToSquared(outer[j])});
+    }
+    ranked.sort((a,b)=>a.d-b.d);
 
-  const renderPass=new RenderPass(scene,camera);
-  const bloomPass=new UnrealBloomPass(
-    new THREE.Vector2(innerWidth,innerHeight),
-    P.bloom.strength,
-    P.bloom.radius,
-    P.bloom.threshold
-  );
-  bloomPass.strength=P.bloom.strength;
-  bloomPass.radius=P.bloom.radius;
-  bloomPass.threshold=P.bloom.threshold;
+    for(let n=0;n<P.layers.scaffold.neighbors;n++){
+      addEdge(i,ranked[n].j,"outer");
+      addEdge(i,ranked[n].j,"inner");
+    }
 
-  const outputPass=new OutputPass();
+    if(i%P.layers.scaffold.spokeEvery===0){
+      const a=outer[i];
+      const b=inner[i];
+      positions.push(a.x,a.y,a.z,b.x,b.y,b.z);
+    }
+  }
 
-  composer.addPass(renderPass);
-  composer.addPass(bloomPass);
-  composer.addPass(outputPass);
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
+  return geometry;
+}
 
-  const root=new THREE.Group();
-  scene.add(root);
+function createScaffoldMaterial(){
+  return new THREE.ShaderMaterial({
+    transparent:true,
+    depthWrite:false,
+    blending:THREE.AdditiveBlending,
+    uniforms:{
+      uTime:{value:0},
+      uA:{value:new THREE.Color("#74f7ff")},
+      uB:{value:new THREE.Color("#ff4ecf")},
+      uC:{value:new THREE.Color("#7b69ff")},
+      uOpacity:{value:P.layers.scaffold.opacity},
+      uGlow:{value:P.material.scaffold.glow},
+      uWhiteCore:{value:P.material.scaffold.whiteCore},
+      uMotion:{value:0}
+    },
+    vertexShader:`
+      varying float vPhase;
+      void main(){
+        vec4 world=modelMatrix*vec4(position,1.);
+        vPhase=position.x*.19+position.y*.27+position.z*.23;
+        gl_Position=projectionMatrix*viewMatrix*world;
+      }`,
+    fragmentShader:`
+      uniform float uTime,uOpacity,uGlow,uWhiteCore,uMotion;
+      uniform vec3 uA,uB,uC;
+      varying float vPhase;
 
-  const triGeo=triangleGeometry();
+      void main(){
+        float wave=.5+.5*sin(vPhase*5.4+uTime*.28);
+        float wave2=.5+.5*cos(vPhase*7.2-uTime*.21);
+        vec3 spectral=mix(uA,uB,wave);
+        spectral=mix(spectral,uC,wave2*.55);
+        spectral=mix(spectral,vec3(1.),uWhiteCore);
+        spectral*=uGlow+uMotion*.36;
+        gl_FragColor=vec4(spectral,uOpacity);
+      }`
+  });
+}
 
-  const reflectiveMat=new THREE.ShaderMaterial({
+function createReflectiveMaterial(videoTexture){
+  return new THREE.ShaderMaterial({
     side:THREE.DoubleSide,
     transparent:true,
     depthWrite:false,
@@ -148,7 +170,14 @@ export async function createVisualScene(stage,cases,videoTexture){
       uB:{value:new THREE.Color("#ff4ecf")},
       uC:{value:new THREE.Color("#7b69ff")},
       uMotion:{value:0},
-      uGlitch:{value:.1}
+      uGlitch:{value:.08},
+      uSaturation:{value:P.material.reflection.saturation},
+      uBrightness:{value:P.material.reflection.brightness},
+      uBaseLift:{value:P.material.reflection.baseLift},
+      uEdgeGlow:{value:P.material.reflection.edgeGlow},
+      uFresnelGlow:{value:P.material.reflection.fresnelGlow},
+      uOpacity:{value:P.material.reflection.opacity},
+      uPixelGrid:{value:new THREE.Vector2(...P.material.reflection.pixelGrid)}
     },
     vertexShader:`
       attribute vec3 bary;
@@ -156,6 +185,7 @@ export async function createVisualScene(stage,cases,videoTexture){
       varying vec3 vBary;
       varying vec3 vWorld;
       varying vec3 vNormalW;
+
       void main(){
         vUv=uv;
         vBary=bary;
@@ -165,9 +195,12 @@ export async function createVisualScene(stage,cases,videoTexture){
         gl_Position=projectionMatrix*viewMatrix*world;
       }`,
     fragmentShader:`
-      uniform float uTime,uMotion,uGlitch;
+      uniform float uTime,uMotion,uGlitch,uSaturation,uBrightness,uBaseLift;
+      uniform float uEdgeGlow,uFresnelGlow,uOpacity;
+      uniform vec2 uPixelGrid;
       uniform sampler2D uVideo;
       uniform vec3 uA,uB,uC;
+
       varying vec2 vUv;
       varying vec3 vBary;
       varying vec3 vWorld;
@@ -175,9 +208,10 @@ export async function createVisualScene(stage,cases,videoTexture){
 
       float edgeFactor(){
         vec3 d=fwidth(vBary);
-        vec3 a3=smoothstep(vec3(0.),d*1.45,vBary);
+        vec3 a3=smoothstep(vec3(0.),d*1.4,vBary);
         return 1.-min(min(a3.x,a3.y),a3.z);
       }
+
       float hash(vec2 p){
         p=fract(p*vec2(123.34,456.21));
         p+=dot(p,p+45.32);
@@ -186,38 +220,42 @@ export async function createVisualScene(stage,cases,videoTexture){
 
       void main(){
         vec2 uv=vUv;
-        float band=floor(uv.y*38.);
-        float glitch=step(.88,hash(vec2(band,floor(uTime*7.))))*uGlitch;
-        uv.x+=(hash(vec2(band,9.+floor(uTime*9.)))-.5)*.085*glitch;
+        float band=floor(uv.y*34.);
+        float glitch=step(.92,hash(vec2(band,floor(uTime*5.))))*uGlitch;
+        uv.x+=(hash(vec2(band,9.+floor(uTime*7.)))-.5)*.045*glitch;
         uv=clamp(uv,0.,1.);
 
-        vec2 pixel=floor(uv*vec2(${P.material.reflection.pixelGrid[0].toFixed(1)},${P.material.reflection.pixelGrid[1].toFixed(1)}))/vec2(${P.material.reflection.pixelGrid[0].toFixed(1)},${P.material.reflection.pixelGrid[1].toFixed(1)});
-        vec3 cam=texture2D(uVideo,pixel).rgb;
-        float l=dot(cam,vec3(.299,.587,.114));
-        cam=mix(vec3(l),cam,${P.material.reflection.saturation.toFixed(3)});
+        vec2 px=floor(uv*uPixelGrid)/uPixelGrid;
+        vec3 cam=texture2D(uVideo,px).rgb;
+        float lum=dot(cam,vec3(.299,.587,.114));
+        cam=mix(vec3(lum),cam,uSaturation);
 
         vec3 N=normalize(vNormalW);
         vec3 V=normalize(cameraPosition-vWorld);
-        float fres=pow(1.-max(dot(N,V),0.),2.0);
+        float fres=pow(1.-max(dot(N,V),0.),2.05);
 
-        vec3 iri=.5+.5*cos(6.28318*(fres+vec3(0.,.33,.67))+vec3(0.,1.35,2.15));
+        vec3 iri=.5+.5*cos(
+          6.28318*(fres+vec3(0.,.33,.67))+vec3(0.,1.35,2.15)
+        );
         iri=mix(uA,uB,iri.r);
         iri=mix(iri,uC,.34+fres*.46);
 
-        float e=edgeFactor();
+        float edge=edgeFactor();
+        vec3 chrome=pow(max(cam,vec3(.001)),vec3(.78))*uBrightness;
+        chrome+=vec3(uBaseLift)+fres*.1;
 
-        vec3 chrome=pow(cam,vec3(.78))*${P.material.reflection.brightness.toFixed(3)};
-        chrome+=vec3(${P.material.reflection.baseLift.toFixed(3)})+fres*.08;
-        vec3 col=chrome*(.5+fres*.34);
-        col+=iri*(e*${P.material.reflection.edgeGlow.toFixed(3)}+fres*${P.material.reflection.fresnelGlow.toFixed(3)});
-        col+=vec3(1.)*e*.26;
-        col+=iri*uMotion*.22;
+        vec3 col=chrome*(.54+fres*.35);
+        col+=iri*(edge*uEdgeGlow+fres*uFresnelGlow);
+        col+=vec3(1.)*edge*.22;
+        col+=iri*uMotion*.16;
 
-        gl_FragColor=vec4(col,.97);
+        gl_FragColor=vec4(col,uOpacity);
       }`
   });
+}
 
-  const moireMat=new THREE.ShaderMaterial({
+function createMoireMaterial(){
+  return new THREE.ShaderMaterial({
     side:THREE.DoubleSide,
     transparent:true,
     depthWrite:false,
@@ -228,7 +266,15 @@ export async function createVisualScene(stage,cases,videoTexture){
       uC:{value:new THREE.Color("#7b69ff")},
       uMoire:{value:1},
       uZebra:{value:.7},
-      uGlitch:{value:.1}
+      uMotion:{value:0},
+      uBlack:{value:P.material.moire.black},
+      uWhite:{value:P.material.moire.white},
+      uOpacity:{value:P.material.moire.opacity},
+      uFreqA:{value:P.material.moire.frequencyA},
+      uFreqB:{value:P.material.moire.frequencyB},
+      uRadialFreq:{value:P.material.moire.radialFrequency},
+      uZebraMix:{value:P.material.moire.zebraMix},
+      uEdgeGlow:{value:P.material.moire.edgeGlow}
     },
     vertexShader:`
       attribute vec3 bary;
@@ -236,16 +282,20 @@ export async function createVisualScene(stage,cases,videoTexture){
       varying vec3 vBary;
       varying vec3 vWorld;
       varying vec3 vNormalW;
+
       void main(){
-        vUv=uv;vBary=bary;
+        vUv=uv;
+        vBary=bary;
         vec4 world=modelMatrix*instanceMatrix*vec4(position,1.);
         vWorld=world.xyz;
         vNormalW=normalize(mat3(modelMatrix*instanceMatrix)*normal);
         gl_Position=projectionMatrix*viewMatrix*world;
       }`,
     fragmentShader:`
-      uniform float uTime,uMoire,uZebra,uGlitch;
+      uniform float uTime,uMoire,uZebra,uMotion;
+      uniform float uBlack,uWhite,uOpacity,uFreqA,uFreqB,uRadialFreq,uZebraMix,uEdgeGlow;
       uniform vec3 uA,uB,uC;
+
       varying vec2 vUv;
       varying vec3 vBary;
       varying vec3 vWorld;
@@ -259,488 +309,536 @@ export async function createVisualScene(stage,cases,videoTexture){
 
       void main(){
         vec2 p=(vUv-.5)*2.;
-        float a=sin((p.x+p.y*.21)*(48.+uMoire*18.));
-        float b=sin((p.y-p.x*.18)*(54.+uMoire*16.)+uTime*.12);
-        float c=sin(length(p)*74.-uTime*.08);
-        float moire=step(0.,a*b+c*.14);
-        float zebra=step(0.,sin((p.x*.62+p.y)*(40.+uZebra*22.)));
-        float bw=mix(moire,zebra,.46);
 
-        vec3 N=normalize(vNormalW),V=normalize(cameraPosition-vWorld);
-        float fres=pow(1.-max(dot(N,V),0.),2.45);
-        vec3 iri=.5+.5*cos(6.28318*(fres+vec3(0.,.33,.67))+vec3(0.,1.5,2.35));
-        iri=mix(uA,uB,iri.r);
-        iri=mix(iri,uC,.3+fres*.5);
+        float a=sin((p.x+p.y*.23)*(uFreqA+uMoire*15.));
+        float b=sin((p.y-p.x*.18)*(uFreqB+uMoire*13.)+uTime*.08);
+        float radial=sin(length(p)*uRadialFreq-uTime*.05);
 
+        float moire=step(0.,a*b+radial*.15);
+        float zebra=step(0.,sin((p.x*.58+p.y)*(38.+uZebra*20.)));
+        float bw=mix(moire,zebra,uZebraMix);
+
+        vec3 base=mix(vec3(uBlack),vec3(uWhite),bw);
+
+        vec3 N=normalize(vNormalW);
+        vec3 V=normalize(cameraPosition-vWorld);
+        float fres=pow(1.-max(dot(N,V),0.),2.5);
         float edge=edgeFactor();
-        vec3 baseBW=mix(vec3(${P.material.moire.black.toFixed(3)}),vec3(${P.material.moire.white.toFixed(3)}),bw);
-        vec3 col=baseBW*.44;
-        col+=iri*(edge*1.72+fres*.19);
-        float pulse=step(.975,sin(vWorld.y*19.+uTime*17.))*uGlitch;
-        col+=iri*pulse*.32;
-        gl_FragColor=vec4(col,${P.material.moire.baseOpacity.toFixed(3)});
+
+        vec3 iri=.5+.5*cos(
+          6.28318*(fres+vec3(0.,.33,.67))+vec3(0.,1.5,2.35)
+        );
+        iri=mix(uA,uB,iri.r);
+        iri=mix(iri,uC,.28+fres*.46);
+
+        vec3 col=base*.48;
+        col+=iri*edge*uEdgeGlow;
+        col+=iri*fres*.11;
+        col+=vec3(1.)*uMotion*.025;
+
+        gl_FragColor=vec4(col,uOpacity);
       }`
   });
+}
 
-  const largeGroup=new THREE.Group();
-  root.add(largeGroup);
-  const largeTriangles=[];
-  const largeWireRings=[];
-  const depthBands=P.geometry.large.depthBands;
-  const largeCount=P.geometry.large.count;
-  const largeRadius=P.reference.aura.radialMax*P.geometry.large.radiusScale;
+function makeRod(geometry,material,a,b,radius){
+  const mesh=new THREE.Mesh(geometry,material);
+  const delta=b.clone().sub(a);
+  const length=delta.length();
 
-  for(let i=0;i<largeCount;i++){
-    const mesh=new THREE.Mesh(triGeo,reflectiveMat);
-    const centerBias=radialFalloff(i+10,P.geometry.large.falloff,largeRadius);
-    const angle=rand(i,7.1)*Math.PI*2;
-    const band=depthBands[i%depthBands.length];
-    const bandJitter=(rand(i,8.2)-.5)*P.geometry.large.depthJitter;
-    const size=THREE.MathUtils.lerp(
-      P.geometry.large.sizeMin,
-      P.geometry.large.sizeMax,
-      1-centerBias/largeRadius
-    );
+  mesh.position.copy(a).add(b).multiplyScalar(.5);
+  mesh.quaternion.setFromUnitVectors(Y_AXIS,delta.clone().normalize());
+  mesh.scale.set(radius,length,radius);
+  return mesh;
+}
 
-    mesh.position.set(
-      Math.cos(angle)*centerBias,
-      (rand(i,4.4)-.5)*P.geometry.large.ySpread,
-      band+bandJitter
-    );
+function createGiantWireTriangle(size,material,rodGeometry){
+  const h=Math.sqrt(3)/2;
+  const a=new THREE.Vector3(0,h*2/3*size,0);
+  const b=new THREE.Vector3(-.5*size,-h/3*size,0);
+  const c=new THREE.Vector3(.5*size,-h/3*size,0);
 
-    mesh.rotation.set(
-      (rand(i,1.2)-.5)*Math.PI,
-      (rand(i,3.6)-.5)*Math.PI,
-      (rand(i,9.4)-.5)*Math.PI
-    );
+  const group=new THREE.Group();
+  const radius=P.layers.giantWire.tubeRadius;
 
-    mesh.scale.setScalar(size);
-    mesh.userData.basePos=mesh.position.clone();
-    mesh.userData.baseRot=mesh.rotation.clone();
-    mesh.userData.baseScale=size;
-    mesh.userData.depthBand=i%depthBands.length;
-    largeTriangles.push(mesh);
-    largeGroup.add(mesh);
+  group.add(makeRod(rodGeometry,material,a,b,radius));
+  group.add(makeRod(rodGeometry,material,b,c,radius));
+  group.add(makeRod(rodGeometry,material,c,a,radius));
 
-    const rings=[];
-    for(let n=1;n<=P.geometry.large.nestedRings;n++){
-      const line=new THREE.LineSegments(
-        triangleLineGeometry(size*(1-n*.16)),
-        new THREE.LineBasicMaterial({
-          color:n%2?0xffffff:0x74f7ff,
-          transparent:true,
-          opacity:.12+n*.045,
-          blending:THREE.AdditiveBlending,
-          depthWrite:false
-        })
-      );
-      line.position.copy(mesh.position);
-      line.rotation.copy(mesh.rotation);
-      line.userData.parent=mesh;
-      line.userData.level=n;
-      largeGroup.add(line);
-      rings.push(line);
-    }
-    largeWireRings.push(rings);
+  return group;
+}
+
+export async function createVisualScene(stage,cases,videoTexture){
+  if(document.fonts?.load){
+    try{await document.fonts.load('700 112px "Turret Road"');}catch{}
   }
 
-  const smallCount=P.geometry.small.count;
-  const smallMesh=new THREE.InstancedMesh(triGeo,moireMat,smallCount);
-  smallMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const smallSeeds=[];
-  const temp=new THREE.Object3D();
+  const scene=new THREE.Scene();
+  scene.fog=new THREE.FogExp2(0x030306,.027);
 
-  for(let i=0;i<smallCount;i++){
-    const depthBand=i%P.geometry.small.depthBands;
-    const z=P.geometry.small.zMin+depthBand*P.geometry.small.zStep+(rand(i,8.1)-.5)*P.geometry.small.zJitter;
-    const radius=radialFalloff(
-      i+200,
-      P.geometry.small.falloff,
-      P.reference.shards.radialMax*P.geometry.small.radiusScale
-    );
-    const angle=rand(i+300,2.1)*Math.PI*2;
-    const y=(rand(i+400,5.7)-.5)*P.geometry.small.ySpread;
+  const camera=new THREE.PerspectiveCamera(52,innerWidth/innerHeight,.1,120);
+  camera.position.set(0,0,8.8);
 
-    temp.position.set(Math.cos(angle)*radius,y,z);
-    temp.rotation.set(
-      rand(i,4.5)*Math.PI,
-      rand(i,1.2)*Math.PI,
-      rand(i,6.8)*Math.PI
-    );
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.3;
+  stage.appendChild(renderer.domElement);
 
-    const s=THREE.MathUtils.lerp(P.geometry.small.sizeMin,P.geometry.small.sizeMax,rand(i,9.2));
-    temp.scale.setScalar(s);
-    temp.updateMatrix();
-    smallMesh.setMatrixAt(i,temp.matrix);
-    smallSeeds.push({
-      position:temp.position.clone(),
-      rotation:temp.rotation.clone(),
-      scale:s,
-      speed:.12+rand(i,3.7)*.55
-    });
-  }
-  root.add(smallMesh);
+  const composer=new EffectComposer(renderer);
+  composer.setPixelRatio(Math.min(devicePixelRatio,2));
+  composer.setSize(innerWidth,innerHeight);
 
-  const tetraGroup=new THREE.Group();
-  root.add(tetraGroup);
-  const tetraGeo=new THREE.TetrahedronGeometry(.42,0);
-  const tetraMeshes=[];
+  const renderPass=new RenderPass(scene,camera);
+  const bloomPass=new UnrealBloomPass(
+    new THREE.Vector2(innerWidth,innerHeight),
+    P.bloom.strength,
+    P.bloom.radius,
+    P.bloom.threshold
+  );
+  const outputPass=new OutputPass();
 
-  for(let i=0;i<P.geometry.tetra.count;i++){
-    const tetraMat=new THREE.MeshPhysicalMaterial({
-      color:0x0d0f16,
-      metalness:.88,
-      roughness:.14,
-      transparent:true,
-      opacity:.96
-    });
-    const tetra=new THREE.Mesh(tetraGeo,tetraMat);
+  composer.addPass(renderPass);
+  composer.addPass(bloomPass);
+  composer.addPass(outputPass);
+
+  const root=new THREE.Group();
+  scene.add(root);
+
+  // Layer A: mathematical iridescent wire scaffold.
+  const scaffoldGroup=new THREE.Group();
+  root.add(scaffoldGroup);
+
+  const scaffoldMat=createScaffoldMaterial();
+  const scaffold=new THREE.LineSegments(createScaffoldGeometry(),scaffoldMat);
+  scaffoldGroup.add(scaffold);
+
+  // Layer B: spherical triangle polygon shell.
+  const shellGroup=new THREE.Group();
+  root.add(shellGroup);
+
+  const triGeo=triangleGeometry();
+  const reflectiveMat=createReflectiveMaterial(videoTexture);
+  const moireMat=createMoireMaterial();
+
+  const reflectiveTriangles=[];
+  const moireSeeds=[];
+
+  const shellCount=P.layers.shell.count;
+  const reflectiveWanted=Math.max(
+    1,
+    Math.round(shellCount*P.layers.shell.reflectiveRatio)
+  );
+  let reflectiveCreated=0;
+
+  for(let i=0;i<shellCount;i++){
+    const direction=fibonacciDirection(i,shellCount);
     const radius=THREE.MathUtils.lerp(
-      P.reference.core.size*.4,
-      P.reference.struts.radialMax*P.geometry.tetra.radiusScale,
-      rand(i+500,4.2)
-    );
-    const angle=rand(i+700,1.8)*Math.PI*2;
-    const z=THREE.MathUtils.lerp(P.geometry.tetra.zMin,P.geometry.tetra.zMax,rand(i+800,2.2));
-    const y=(rand(i+600,7.6)-.5)*P.geometry.tetra.ySpread;
+      P.layers.shell.radiusMin,
+      P.layers.shell.radiusMax,
+      rand(i,4.7)
+    )+(rand(i,8.1)-.5)*P.layers.shell.radialJitter;
 
-    tetra.position.set(Math.cos(angle)*radius,y,z);
-    tetra.rotation.set(
-      rand(i+900,3.7)*Math.PI,
-      rand(i+1000,2.8)*Math.PI,
-      rand(i+1100,9.1)*Math.PI
+    const position=ellipsoidPoint(
+      direction,
+      radius,
+      P.layers.shell.ellipsoid
     );
 
-    const s=THREE.MathUtils.lerp(P.geometry.tetra.sizeMin,P.geometry.tetra.sizeMax,rand(i+1200,1.5));
-    tetra.scale.setScalar(s);
+    position.z+=P.layers.shell.frontBias*(1-Math.abs(direction.z));
 
-    const edges=new THREE.LineSegments(
-      new THREE.EdgesGeometry(tetraGeo),
-      new THREE.LineBasicMaterial({
-        color:0xffffff,
-        transparent:true,
-        opacity:.24,
-        blending:THREE.AdditiveBlending,
-        depthWrite:false
-      })
+    const shouldReflect=
+      reflectiveCreated<reflectiveWanted &&
+      (
+        rand(i,12.3)<P.layers.shell.reflectiveRatio ||
+        shellCount-i<=reflectiveWanted-reflectiveCreated
+      );
+
+    const temp=new THREE.Object3D();
+    temp.position.copy(position);
+    orientToNormal(
+      temp,
+      direction,
+      (rand(i,5.2)-.5)*Math.PI*P.layers.shell.rotationJitter
     );
-    tetra.add(edges);
-    tetra.userData.basePos=tetra.position.clone();
-    tetra.userData.baseRot=tetra.rotation.clone();
-    tetra.userData.baseScale=s;
-    tetraMeshes.push(tetra);
-    tetraGroup.add(tetra);
-  }
 
-  const sawGeo=new THREE.BufferGeometry();
-  const sawPositions=[];
-  for(let row=0;row<P.geometry.saw.rows;row++){
-    const z=-5.5+row*1.45;
-    const y=-2.4+row*.68;
-    for(let i=0;i<P.geometry.saw.columns;i++){
-      const x=-5.7+i*.3;
-      const s=.15+(row%3)*.02;
-      const h=Math.sqrt(3)/2*s;
-      const flip=i%2===0?1:-1;
-      const p0=[x,y+h*flip,z];
-      const p1=[x-s*.5,y-h*.35*flip,z];
-      const p2=[x+s*.5,y-h*.35*flip,z];
-      sawPositions.push(...p0,...p1,...p1,...p2,...p2,...p0);
+    if(shouldReflect){
+      reflectiveCreated++;
+
+      const mesh=new THREE.Mesh(triGeo,reflectiveMat);
+      const size=THREE.MathUtils.lerp(
+        P.layers.shell.reflectiveSizeMin,
+        P.layers.shell.reflectiveSizeMax,
+        Math.pow(rand(i,15.1),.66)
+      );
+
+      mesh.position.copy(temp.position);
+      mesh.quaternion.copy(temp.quaternion);
+      mesh.scale.setScalar(size);
+
+      mesh.userData.basePos=mesh.position.clone();
+      mesh.userData.baseQuat=mesh.quaternion.clone();
+      mesh.userData.baseScale=size;
+      mesh.userData.normal=direction.clone();
+      mesh.userData.phase=rand(i,18.4)*Math.PI*2;
+
+      reflectiveTriangles.push(mesh);
+      shellGroup.add(mesh);
+    }else{
+      const size=THREE.MathUtils.lerp(
+        P.layers.shell.moireSizeMin,
+        P.layers.shell.moireSizeMax,
+        Math.pow(rand(i,17.7),1.25)
+      );
+
+      moireSeeds.push({
+        position:temp.position.clone(),
+        quaternion:temp.quaternion.clone(),
+        scale:size,
+        normal:direction.clone(),
+        phase:rand(i,21.8)*Math.PI*2
+      });
     }
   }
-  sawGeo.setAttribute("position",new THREE.Float32BufferAttribute(sawPositions,3));
-  const sawMat=new THREE.LineBasicMaterial({
-    color:0xffffff,
-    transparent:true,
-    opacity:.12,
-    blending:THREE.AdditiveBlending,
-    depthWrite:false
+
+  const moireMesh=new THREE.InstancedMesh(triGeo,moireMat,moireSeeds.length);
+  moireMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  shellGroup.add(moireMesh);
+
+  const instanceTemp=new THREE.Object3D();
+  moireSeeds.forEach((seed,i)=>{
+    instanceTemp.position.copy(seed.position);
+    instanceTemp.quaternion.copy(seed.quaternion);
+    instanceTemp.scale.setScalar(seed.scale);
+    instanceTemp.updateMatrix();
+    moireMesh.setMatrixAt(i,instanceTemp.matrix);
   });
-  const saw=new THREE.LineSegments(sawGeo,sawMat);
-  saw.rotation.z=-.18;
-  root.add(saw);
+  moireMesh.instanceMatrix.needsUpdate=true;
 
-  const haloGroups=[];
-  for(let d=0;d<P.geometry.halo.layers;d++){
-    const hg=new THREE.Group();
-    hg.position.z=P.geometry.halo.zStart+d*P.geometry.halo.zStep;
-    hg.scale.setScalar(P.geometry.halo.baseScale+d*P.geometry.halo.scaleStep);
-    hg.rotation.z=(d%2?1:-1)*(.07+d*.02);
+  // Layer C: giant glossy anthracite wire polygons.
+  const giantWireGroup=new THREE.Group();
+  root.add(giantWireGroup);
 
-    const count=P.geometry.halo.count;
-    const haloMesh=new THREE.InstancedMesh(triGeo,moireMat,count);
-    const o=new THREE.Object3D();
-    for(let i=0;i<count;i++){
-      const radius=radialFalloff(
-        800+d*100+i,
-        2.2,
-        P.reference.struts.radialMax*P.geometry.halo.radiusScale
-      );
-      const angle=rand(i+d*100,3.6)*Math.PI*2;
-      o.position.set(
-        Math.cos(angle)*radius,
-        (rand(i+d*100,6.2)-.5)*3.6,
-        0
-      );
-      o.rotation.set(0,0,rand(i+d*100,8.8)*Math.PI);
-      o.scale.setScalar(.055+rand(i+d*100,3.1)*.2);
-      o.updateMatrix();
-      haloMesh.setMatrixAt(i,o.matrix);
-    }
-    hg.add(haloMesh);
-    root.add(hg);
-    haloGroups.push(hg);
+  const giantMat=new THREE.MeshPhysicalMaterial({
+    color:new THREE.Color(P.layers.giantWire.darkColor),
+    emissive:new THREE.Color("#030407"),
+    emissiveIntensity:.12,
+    metalness:P.layers.giantWire.metalness,
+    roughness:P.layers.giantWire.roughness,
+    clearcoat:P.layers.giantWire.clearcoat,
+    clearcoatRoughness:P.layers.giantWire.clearcoatRoughness,
+    side:THREE.DoubleSide
+  });
+
+  const rodGeometry=new THREE.CylinderGeometry(1,1,1,6,1,false);
+  const giantPolygons=[];
+
+  for(let i=0;i<P.layers.giantWire.count;i++){
+    const direction=fibonacciDirection(i+31,P.layers.giantWire.count+31);
+
+    const radius=THREE.MathUtils.lerp(
+      P.layers.giantWire.radiusMin,
+      P.layers.giantWire.radiusMax,
+      rand(i,30.7)
+    );
+
+    const position=ellipsoidPoint(
+      direction,
+      radius,
+      P.layers.giantWire.ellipsoid
+    );
+
+    const size=THREE.MathUtils.lerp(
+      P.layers.giantWire.sizeMin,
+      P.layers.giantWire.sizeMax,
+      rand(i,33.1)
+    );
+
+    const group=createGiantWireTriangle(size,giantMat,rodGeometry);
+
+    group.position.copy(position);
+    orientToNormal(group,direction,(rand(i,35.2)-.5)*Math.PI);
+
+    group.userData.basePos=group.position.clone();
+    group.userData.baseQuat=group.quaternion.clone();
+    group.userData.phase=rand(i,39.4)*Math.PI*2;
+
+    giantPolygons.push(group);
+    giantWireGroup.add(group);
   }
 
-  const networkGeo=new THREE.BufferGeometry();
-  const networkPositions=[];
-  for(let i=0;i<P.geometry.network.segments;i++){
-    const a=largeTriangles[i%largeTriangles.length].position;
-    const b=largeTriangles[(i*5+7)%largeTriangles.length].position;
-    networkPositions.push(a.x,a.y,a.z,b.x,b.y,b.z);
-  }
-  networkGeo.setAttribute("position",new THREE.Float32BufferAttribute(networkPositions,3));
-  const networkMat=new THREE.LineBasicMaterial({
-    color:0xcbe8ff,
-    transparent:true,
-    opacity:.085,
-    blending:THREE.AdditiveBlending,
-    depthWrite:false
-  });
-  const networkLines=new THREE.LineSegments(networkGeo,networkMat);
-  root.add(networkLines);
+  // Lights mainly reveal the glossy black outer wire layer.
+  scene.add(new THREE.AmbientLight(0xffffff,.17));
 
-  const headlineRoot=new THREE.Group();
-  root.add(headlineRoot);
-  const headlines=cases.map((c,ci)=>{
-    const group=new THREE.Group();
-    const anchor=largeTriangles[(ci*5)%largeTriangles.length];
+  const key=new THREE.PointLight(0xffffff,11,36);
+  const cyan=new THREE.PointLight(0x74f7ff,8,32);
+  const magenta=new THREE.PointLight(0xff4ecf,7,32);
 
-    const heroTex=headlineTexture(c.title,c.palette[0],c.palette[1]||c.palette[0]);
-    const heroMat=new THREE.MeshBasicMaterial({
-      map:heroTex,
-      transparent:true,
-      opacity:0,
-      side:THREE.DoubleSide,
-      depthWrite:false,
-      blending:THREE.AdditiveBlending
-    });
-    const hero=new THREE.Mesh(new THREE.PlaneGeometry(2.8,.66),heroMat);
-    hero.position.copy(anchor.position).add(new THREE.Vector3(0,.58,.34));
-    hero.rotation.copy(anchor.rotation);
-    hero.userData.base=hero.position.clone();
-    group.add(hero);
+  key.position.set(3.8,4.8,6.5);
+  cyan.position.set(-5,1.5,4);
+  magenta.position.set(4,-4,-2);
 
-    const edgeTex=edgeHeadlineTexture(c.title,c.palette[0]);
-    const edgeMat=new THREE.MeshBasicMaterial({
-      map:edgeTex,
-      transparent:true,
-      opacity:0,
-      side:THREE.DoubleSide,
-      depthWrite:false,
-      blending:THREE.AdditiveBlending
-    });
-
-    const edgeScale=anchor.userData.baseScale*.9;
-    const edgePlane=new THREE.Mesh(new THREE.PlaneGeometry(edgeScale*1.45,.18),edgeMat);
-    edgePlane.position.copy(anchor.position);
-    edgePlane.rotation.copy(anchor.rotation);
-    edgePlane.position.y+=.08;
-    edgePlane.position.z+=.03;
-    edgePlane.userData.base=edgePlane.position.clone();
-    edgePlane.userData.scroll=0;
-    group.add(edgePlane);
-
-    headlineRoot.add(group);
-    return group;
-  });
-
-  scene.add(new THREE.AmbientLight(0xffffff,.18));
-  const key=new THREE.PointLight(0x74f7ff,16,30);
-  const fill=new THREE.PointLight(0xff4ecf,12,28);
-  const back=new THREE.PointLight(0x7b69ff,9,34);
-  key.position.set(5,3.5,7);
-  fill.position.set(-5,-3,5);
-  back.position.set(0,1,-10);
-  scene.add(key,fill,back);
+  scene.add(key,cyan,magenta);
 
   function resize(){
     camera.aspect=innerWidth/innerHeight;
     camera.updateProjectionMatrix();
+
+    const ratio=Math.min(devicePixelRatio,2);
+    renderer.setPixelRatio(ratio);
     renderer.setSize(innerWidth,innerHeight);
-    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+
+    composer.setPixelRatio(ratio);
     composer.setSize(innerWidth,innerHeight);
-    composer.setPixelRatio(Math.min(devicePixelRatio,2));
   }
 
   return {
     scene,camera,renderer,composer,bloomPass,root,
-    reflectiveMat,moireMat,
-    largeTriangles,largeWireRings,
-    smallMesh,smallSeeds,
-    tetraMeshes,
-    saw,sawMat,haloGroups,
-    networkMat,headlines,
-    key,fill,back,resize
+    scaffoldGroup,scaffoldMat,
+    shellGroup,reflectiveMat,reflectiveTriangles,
+    moireMat,moireMesh,moireSeeds,
+    giantWireGroup,giantPolygons,
+    key,cyan,magenta,
+    resize
   };
 }
 
-export function updateVisualScene(v,time,state,pointer,cameraMotion,activeCase){
+export function updateVisualScene(
+  visual,
+  time,
+  state,
+  pointer,
+  cameraMotion,
+  activeCase
+){
   const motionRaw=cameraMotion.motion||0;
   const motion=motionRaw*motionRaw*(3-2*motionRaw);
+
   const humanX=cameraMotion.motionX||0;
   const humanY=cameraMotion.motionY||0;
   const humanVX=cameraMotion.velocityX||0;
   const humanVY=cameraMotion.velocityY||0;
   const humanCX=cameraMotion.centroidX||0;
   const humanCY=cameraMotion.centroidY||0;
+
   const {
-    root,reflectiveMat,moireMat,
-    largeTriangles,largeWireRings,
-    smallMesh,smallSeeds,
-    tetraMeshes,
-    saw,sawMat,haloGroups,
-    networkMat,headlines,
-    key,fill,back
-  }=v;
+    root,
+    scaffoldGroup,scaffoldMat,
+    reflectiveMat,reflectiveTriangles,
+    moireMat,moireMesh,moireSeeds,
+    giantWireGroup,giantPolygons,
+    bloomPass,key,cyan,magenta
+  }=visual;
+
+  const R=P.reaction;
 
   root.rotation.x=THREE.MathUtils.lerp(
     root.rotation.x,
-    pointer.y*.14+state.tiltBias*.12-humanY*P.reaction.root.cameraY,
-    .04
+    pointer.y*R.root.pointerY-humanY*R.root.cameraY,
+    .026
   );
+
   root.rotation.y=THREE.MathUtils.lerp(
     root.rotation.y,
-    pointer.x*.18+state.rotationBias*.035+humanX*P.reaction.root.cameraX,
-    .04
+    pointer.x*R.root.pointerX+humanX*R.root.cameraX,
+    .026
   );
-  root.rotation.z=Math.sin(time*.13)*.025+humanVX*P.reaction.root.velocityRoll;
 
+  root.rotation.z=THREE.MathUtils.lerp(
+    root.rotation.z,
+    humanVX*R.root.velocityRoll,
+    .018
+  );
+
+  // Layer A.
+  scaffoldMat.uniforms.uTime.value=time;
+  scaffoldMat.uniforms.uMotion.value=motion;
+  scaffoldMat.uniforms.uA.value.copy(state.palette[0]);
+  scaffoldMat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
+  scaffoldMat.uniforms.uC.value.copy(
+    state.palette[2]||state.palette[1]||state.palette[0]
+  );
+
+  scaffoldGroup.rotation.x=THREE.MathUtils.lerp(
+    scaffoldGroup.rotation.x,
+    -humanY*R.scaffold.cameraY+Math.sin(time*.09)*.035,
+    .018
+  );
+
+  scaffoldGroup.rotation.y=THREE.MathUtils.lerp(
+    scaffoldGroup.rotation.y,
+    humanX*R.scaffold.cameraX+time*.012,
+    .018
+  );
+
+  scaffoldGroup.rotation.z=THREE.MathUtils.lerp(
+    scaffoldGroup.rotation.z,
+    (humanVX-humanVY)*R.scaffold.velocitySpin,
+    .014
+  );
+
+  const scaffoldScale=
+    1+
+    Math.sin(time*.24)*P.layers.scaffold.breathing+
+    motion*R.scaffold.motionScale;
+
+  const scaffoldS=THREE.MathUtils.lerp(
+    scaffoldGroup.scale.x,
+    scaffoldScale,
+    .02
+  );
+  scaffoldGroup.scale.setScalar(scaffoldS);
+
+  // Layer B materials.
   reflectiveMat.uniforms.uTime.value=time;
   reflectiveMat.uniforms.uMotion.value=motion;
-  reflectiveMat.uniforms.uGlitch.value=state.glitch+motion*.25;
+  reflectiveMat.uniforms.uGlitch.value=state.glitch+motion*.13;
   reflectiveMat.uniforms.uA.value.copy(state.palette[0]);
   reflectiveMat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
-  reflectiveMat.uniforms.uC.value.copy(state.palette[2]||state.palette[1]||state.palette[0]);
+  reflectiveMat.uniforms.uC.value.copy(
+    state.palette[2]||state.palette[1]||state.palette[0]
+  );
 
   moireMat.uniforms.uTime.value=time;
   moireMat.uniforms.uMoire.value=state.moire;
   moireMat.uniforms.uZebra.value=state.zebra;
-  moireMat.uniforms.uGlitch.value=state.glitch;
+  moireMat.uniforms.uMotion.value=motion;
   moireMat.uniforms.uA.value.copy(state.palette[0]);
   moireMat.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
-  moireMat.uniforms.uC.value.copy(state.palette[2]||state.palette[1]||state.palette[0]);
+  moireMat.uniforms.uC.value.copy(
+    state.palette[2]||state.palette[1]||state.palette[0]
+  );
 
-  largeTriangles.forEach((tri,i)=>{
+  reflectiveTriangles.forEach(tri=>{
     const base=tri.userData.basePos;
-    const scaleBase=tri.userData.baseScale;
-    const depth=tri.userData.depthBand;
+    const normal=tri.userData.normal;
 
-    const proximity=Math.max(
-      0,
-      1-Math.hypot(
-        base.x-humanCX*(P.reference.aura.radialMax*P.geometry.large.radiusScale),
-        base.y-humanCY*P.geometry.large.ySpread
-      )/
-        P.reaction.large.influenceRadius
+    const dx=base.x-humanCX*3.2;
+    const dy=base.y-humanCY*2.5;
+    const near=Math.max(0,1-Math.hypot(dx,dy)/R.shell.influenceRadius);
+
+    const target=base.clone()
+      .add(new THREE.Vector3(
+        humanX*R.shell.xPush*near,
+        humanY*R.shell.yPush*near,
+        0
+      ))
+      .addScaledVector(normal,motion*R.shell.zPush*near);
+
+    target.addScaledVector(
+      normal,
+      Math.sin(time*.22+tri.userData.phase)*.035
     );
-    const humanPush=motion*proximity;
-    tri.position.x=base.x+Math.sin(time*.18+i)*.04+humanX*P.reaction.large.xPush*proximity;
-    tri.position.y=base.y+Math.cos(time*.16+i*.7)*.04+humanY*P.reaction.large.yPush*proximity;
-    tri.position.z=base.z+Math.sin(time*.12+i*.35)*(.05+.02*depth)+humanPush*P.reaction.large.zPush;
 
-    tri.rotation.x=tri.userData.baseRot.x+Math.sin(time*.11+i)*.04-humanVY*P.reaction.large.velocityTilt*proximity;
-    tri.rotation.y=tri.userData.baseRot.y+Math.cos(time*.09+i)*.04+humanVX*P.reaction.large.velocityTilt*proximity;
+    tri.position.lerp(target,.03);
 
-    const pulse=1+motion*P.reaction.large.scalePulse*proximity+Math.sin(time*.35+i)*.01;
-    tri.scale.setScalar(scaleBase*pulse);
-  });
+    const q=tri.userData.baseQuat.clone();
+    q.multiply(
+      new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(
+          -humanVY*R.shell.velocityTilt*near,
+          humanVX*R.shell.velocityTilt*near,
+          0
+        )
+      )
+    );
+    tri.quaternion.slerp(q,.025);
 
-  largeWireRings.forEach(rings=>{
-    rings.forEach(line=>{
-      const parent=line.userData.parent;
-      line.position.copy(parent.position);
-      line.rotation.copy(parent.rotation);
-      line.scale.copy(parent.scale).multiplyScalar(1/parent.userData.baseScale);
-    });
+    const targetScale=tri.userData.baseScale*(
+      1+motion*R.shell.scalePulse*near
+    );
+    const s=THREE.MathUtils.lerp(tri.scale.x,targetScale,.028);
+    tri.scale.setScalar(s);
   });
 
   const temp=new THREE.Object3D();
-  smallSeeds.forEach((s,i)=>{
-    temp.position.copy(s.position);
-    const sx=s.position.x-humanCX*(P.reference.shards.radialMax*.58);
-    const sy=s.position.y-humanCY*(P.geometry.small.ySpread*.52);
-    const near=Math.max(0,1-Math.hypot(sx,sy)/P.reaction.small.influenceRadius);
-    temp.position.x+=humanX*near*P.reaction.small.xPush;
-    temp.position.y+=humanY*near*P.reaction.small.yPush;
-    temp.position.z+=Math.sin(time*s.speed+i)*.08+motion*near*P.reaction.small.zPush;
-    temp.rotation.set(
-      s.rotation.x+time*.05*s.speed-humanVY*P.reaction.small.velocityTilt*near,
-      s.rotation.y-time*.04*s.speed+humanVX*P.reaction.small.velocityTilt*near,
-      s.rotation.z+Math.sin(time*.18+i)*.06
+
+  moireSeeds.forEach((seed,i)=>{
+    const base=seed.position;
+    const normal=seed.normal;
+
+    const dx=base.x-humanCX*3.4;
+    const dy=base.y-humanCY*2.7;
+    const near=Math.max(0,1-Math.hypot(dx,dy)/R.shell.influenceRadius);
+
+    temp.position.copy(base);
+    temp.position.x+=humanX*R.shell.xPush*.7*near;
+    temp.position.y+=humanY*R.shell.yPush*.7*near;
+    temp.position.addScaledVector(
+      normal,
+      motion*R.shell.zPush*.68*near+
+      Math.sin(time*.17+seed.phase)*.025
     );
+
+    temp.quaternion.copy(seed.quaternion);
+    temp.rotateX(-humanVY*R.shell.velocityTilt*.58*near);
+    temp.rotateY(humanVX*R.shell.velocityTilt*.58*near);
+
     temp.scale.setScalar(
-      s.scale*(1+Math.sin(time*.4+i)*.035*state.density+motion*near*P.reaction.small.scalePulse)
+      seed.scale*(1+motion*R.shell.scalePulse*.72*near)
     );
+
     temp.updateMatrix();
-    smallMesh.setMatrixAt(i,temp.matrix);
-  });
-  smallMesh.instanceMatrix.needsUpdate=true;
-
-  tetraMeshes.forEach((tetra,i)=>{
-    const base=tetra.userData.basePos;
-    const dx=base.x-humanCX*(P.reference.struts.radialMax*.57);
-    const dy=base.y-humanCY*(P.geometry.tetra.ySpread*.58);
-    const near=Math.max(0,1-Math.hypot(dx,dy)/P.reaction.tetra.influenceRadius);
-    tetra.position.x=base.x+humanX*near*P.reaction.tetra.xPush;
-    tetra.position.y=base.y+humanY*near*P.reaction.tetra.yPush;
-    tetra.position.z=base.z+Math.sin(time*.24+i)*.12+motion*near*P.reaction.tetra.zPush;
-    tetra.rotation.x=tetra.userData.baseRot.x+time*.03-humanVY*P.reaction.tetra.velocityTilt*near;
-    tetra.rotation.y=tetra.userData.baseRot.y-time*.025+humanVX*P.reaction.tetra.velocityTilt*near;
+    moireMesh.setMatrixAt(i,temp.matrix);
   });
 
-  saw.rotation.y=Math.sin(time*.08)*.08;
-  saw.position.x=Math.sin(time*.14)*.18;
-  sawMat.opacity=.08+state.moire*.08+motion*.05;
-  sawMat.color.copy(new THREE.Color().lerpColors(state.palette[0],new THREE.Color(0xffffff),.78));
+  moireMesh.instanceMatrix.needsUpdate=true;
 
-  haloGroups.forEach((g,i)=>{
-    g.rotation.z+=(i%2?1:-1)*(.00055+i*.00022)+(humanVX-humanVY)*P.reaction.halo.velocitySpin*(i+1);
-    g.position.x=Math.sin(time*.08+i)*.14*(i+1)+humanX*P.reaction.halo.xPush*(i+1);
-    g.position.y=Math.cos(time*.07+i*.7)*.08*(i+1)+humanY*P.reaction.halo.yPush*(i+1);
-    const depthPulse=1+motion*P.reaction.halo.scalePulse*(i+1);
-    g.scale.setScalar(
-      (P.geometry.halo.baseScale+i*P.geometry.halo.scaleStep)*depthPulse
+  // Layer C.
+  giantPolygons.forEach(poly=>{
+    const base=poly.userData.basePos;
+    const target=base.clone();
+
+    target.x+=humanX*R.giantWire.xPush;
+    target.y+=humanY*R.giantWire.yPush;
+    target.z+=Math.sin(
+      time*P.layers.giantWire.motion+poly.userData.phase
+    )*.055;
+
+    poly.position.lerp(target,.012);
+
+    const q=poly.userData.baseQuat.clone();
+    q.multiply(
+      new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(
+          -humanVY*R.giantWire.velocityTilt,
+          humanVX*R.giantWire.velocityTilt,
+          0
+        )
+      )
     );
+    poly.quaternion.slerp(q,.01);
+
+    const targetScale=1+motion*R.giantWire.motionScale;
+    const s=THREE.MathUtils.lerp(poly.scale.x,targetScale,.012);
+    poly.scale.setScalar(s);
   });
 
-  networkMat.opacity=.045+state.density*.055+motion*.12;
-  networkMat.color.copy(state.palette[0]).lerp(new THREE.Color(0xffffff),.72);
+  giantWireGroup.rotation.y+=.00035;
+  giantWireGroup.rotation.x=Math.sin(time*.045)*.035;
 
-  headlines.forEach((g,gi)=>{
-    const active=gi===activeCase;
-    g.children.forEach((p,i)=>{
-      const targetOpacity=active?(i===0?.94:.7):.025;
-      p.material.opacity=THREE.MathUtils.lerp(p.material.opacity,targetOpacity,.06);
-      p.position.copy(p.userData.base);
-      p.position.y+=Math.sin(time*.8+i+gi)*.02;
-      if(i===1&&p.material.map){
-        p.material.map.offset.x=(time*.035)%1;
-        p.material.map.needsUpdate=true;
-      }
-    });
-  });
+  // Light motion stays subtle.
+  key.position.x=THREE.MathUtils.lerp(
+    key.position.x,
+    3.8+humanX*1.2,
+    .02
+  );
+  key.position.y=THREE.MathUtils.lerp(
+    key.position.y,
+    4.8+humanY*.9,
+    .02
+  );
 
-  key.color.copy(state.palette[0]);
-  fill.color.copy(state.palette[1]||state.palette[0]);
-  back.color.copy(state.palette[2]||state.palette[1]||state.palette[0]);
+  cyan.color.copy(state.palette[0]);
+  magenta.color.copy(state.palette[1]||state.palette[0]);
 
-  key.position.x=5+humanX*3.5;
-  key.position.y=3.5+humanY*2.4;
-  fill.position.x=-5-humanX*2.2;
-  fill.position.y=-3-humanY*1.8;
+  cyan.intensity=7+state.intensity*3+motion*3;
+  magenta.intensity=6+state.glitch*2+motion*2;
 
-  key.intensity=9+state.intensity*13+motion*14;
-  fill.intensity=6+state.glitch*10+motion*7;
-  back.intensity=5+state.moire*5+motion*5;
+  bloomPass.strength=
+    P.bloom.strength+
+    motion*P.bloom.motionBoost+
+    state.intensity*.05;
 }
