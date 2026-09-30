@@ -3,7 +3,10 @@ import {CASES as fallbackCases} from "./cases.js";
 /**
  * Expected CMS/API case shape:
  * {
- *   id, title, year,
+ *   id,
+ *   slug,
+ *   title,
+ *   year,
  *   location: { city, country, lat, lng },
  *   disciplines: string[],
  *   tags: string[],
@@ -11,9 +14,27 @@ import {CASES as fallbackCases} from "./cases.js";
  *   intensity: 0..1,
  *   complexity: 0..1,
  *   featured?: boolean,
- *   slug?: string,
- *   hero?: { image?: string, video?: string }
+ *
+ *   // Backwards-compatible hero fields:
+ *   hero?: {
+ *     image?: string,
+ *     video?: string
+ *   },
+ *
+ *   // Preferred media model for the spatial case presentation:
+ *   presentation?: {
+ *     video?: string | { src: string, poster?: string },
+ *     images?: Array<string | {
+ *       src: string,
+ *       alt?: string,
+ *       width?: number,
+ *       height?: number
+ *     }>
+ *   }
  * }
+ *
+ * The frontend currently tries /api/cases and falls back to src/cases.js.
+ * There is no real CMS/backend connected yet.
  */
 export async function loadCases(){
   try{
