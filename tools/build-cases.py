@@ -14,6 +14,7 @@ OUTPUT = MEDIA / "cases.json"
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".gif"}
 VIDEO_EXTS = {".mp4", ".webm", ".ogg"}
+TEXT_EXTS = {".txt"}
 
 def clamp(v, lo=0.0, hi=1.0):
     return max(lo, min(hi, v))
@@ -50,13 +51,55 @@ def read_metadata(folder: Path):
         print(f"Warning: cannot parse {path}: {exc}")
         return {}
 
+def read_text_card(folder: Path):
+    text_files = sorted(
+        (p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in TEXT_EXTS),
+        key=lambda p: (0 if p.stem.lower() == folder.name.lower() else 1, p.name.lower()),
+    )
+    if not text_files:
+        return {"title": "", "description": "", "source": ""}
+
+    path = text_files[0]
+    try:
+        raw = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        raw = path.read_text(encoding="latin-1")
+
+    lines = [line.strip() for line in raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    lines = [line for line in lines if line]
+
+    if not lines:
+        return {"title": "", "description": "", "source": path.name}
+
+    return {
+        "title": lines[0],
+        "description": "\n".join(lines[1:]).strip(),
+        "source": path.name,
+    }
+
+def inferred_order(folder_name: str) -> int:
+    trailing = re.search(r"(\d+)$", folder_name)
+    if trailing:
+        return int(trailing.group(1))
+
+    leading = re.match(r"^(\d+)", folder_name)
+    if leading:
+        return int(leading.group(1))
+
+    return 9999
+
 def root_path(path: Path) -> str:
     return "/" + path.relative_to(ROOT).as_posix()
 
 def scan_case(folder: Path):
     metadata = read_metadata(folder)
+    text_card = read_text_card(folder)
+
     files = sorted(
-        (p for p in folder.iterdir() if p.is_file() and p.name != "case.json"),
+        (
+            p for p in folder.iterdir()
+            if p.is_file() and p.name != "case.json" and p.suffix.lower() not in TEXT_EXTS
+        ),
         key=lambda p: p.name.lower(),
     )
 
@@ -70,6 +113,11 @@ def scan_case(folder: Path):
     slug = re.sub(r"[^a-z0-9]+", "-", folder_slug).strip("-")
     seed = slug or folder.name
     media_count = len(images) + len(videos)
+
+    title = metadata.get("title") or text_card["title"] or human_title(folder.name)
+    description = metadata.get("description")
+    if description is None:
+        description = text_card["description"]
 
     intensity = clamp(0.48 + min(media_count, 12) * 0.035 + (0.08 if videos else 0))
     complexity = clamp(0.50 + min(len(images), 14) * 0.028 + len(videos) * 0.05)
@@ -85,12 +133,14 @@ def scan_case(folder: Path):
         inferred_tags.append("Visual")
 
     visual = {
-        "scaffoldScale": round(0.90 + stable_unit(seed, 10) * 0.24, 4),
-        "shellScale": round(0.90 + stable_unit(seed, 11) * 0.22, 4),
-        "giantScale": round(0.90 + stable_unit(seed, 12) * 0.28, 4),
-        "bloomBias": round(-0.08 + stable_unit(seed, 13) * 0.22, 4),
-        "orbitBias": round(-0.18 + stable_unit(seed, 14) * 0.36, 4),
-        "moireBias": round(-0.12 + stable_unit(seed, 15) * 0.28, 4),
+        "heroScale": round(0.94 + stable_unit(seed, 10) * 0.16, 4),
+        "moireScale": round(0.90 + stable_unit(seed, 11) * 0.20, 4),
+        "auraScale": round(0.90 + stable_unit(seed, 12) * 0.24, 4),
+        "wireScale": round(0.94 + stable_unit(seed, 13) * 0.14, 4),
+        "bloomBias": round(-0.05 + stable_unit(seed, 14) * 0.14, 4),
+        "orbitBias": round(-0.16 + stable_unit(seed, 15) * 0.32, 4),
+        "iridescenceBias": round(0.85 + stable_unit(seed, 16) * 0.35, 4),
+        "moireBias": round(-0.12 + stable_unit(seed, 17) * 0.28, 4),
     }
     visual.update(metadata.get("visual", {}))
 
@@ -98,11 +148,12 @@ def scan_case(folder: Path):
         "images": [
             {
                 "src": root_path(p),
-                "alt": f"{metadata.get('title', human_title(folder.name))} — {p.stem}",
+                "alt": f"{title} — {p.stem}",
             }
             for p in images
         ]
     }
+
     if videos:
         preferred = next(
             (p for p in videos if p.stem.lower() in {"hero", "main", "cover", "intro"}),
@@ -114,9 +165,11 @@ def scan_case(folder: Path):
         "id": metadata.get("id", slug),
         "slug": metadata.get("slug", slug),
         "folder": folder.name,
-        "title": metadata.get("title", human_title(folder.name)),
+        "title": title,
+        "description": description or "",
+        "textSource": text_card["source"],
         "year": metadata.get("year", datetime.now().year),
-        "order": metadata.get("order", 9999),
+        "order": metadata.get("order", inferred_order(folder.name)),
         "location": metadata.get(
             "location",
             {"city": "", "country": "", "lat": 0, "lng": 0},
@@ -144,7 +197,10 @@ def main():
     MEDIA.mkdir(parents=True, exist_ok=True)
 
     cases = []
-    for folder in sorted(p for p in MEDIA.iterdir() if p.is_dir() and not p.name.startswith(".")):
+    for folder in sorted(
+        (p for p in MEDIA.iterdir() if p.is_dir() and not p.name.startswith(".")),
+        key=lambda p: (inferred_order(p.name), p.name.lower()),
+    ):
         case = scan_case(folder)
         if case:
             cases.append(case)
