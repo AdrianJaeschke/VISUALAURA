@@ -80,8 +80,21 @@ addEventListener("keydown",e=>{
   if(["ArrowLeft","ArrowUp"].includes(e.key))setCase(activeCase-1);
 });
 
-async function orientation(){if(!isMobile)return;if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){if(await DeviceOrientationEvent.requestPermission()!=="granted")return}
- addEventListener("deviceorientation",e=>{gyroTarget.x=THREE.MathUtils.clamp((e.gamma||0)/35,-1,1);gyroTarget.y=THREE.MathUtils.clamp(((e.beta||0)-45)/45,-1,1)})}
+async function orientation(){
+  if(!isMobile)return;
+  if(
+    typeof DeviceOrientationEvent!=="undefined"&&
+    typeof DeviceOrientationEvent.requestPermission==="function"
+  ){
+    if(await DeviceOrientationEvent.requestPermission()!=="granted")return;
+  }
+
+  addEventListener("deviceorientation",e=>{
+    // Mobile interaction deliberately tracks only left / right tilt.
+    gyroTarget.x=THREE.MathUtils.clamp((e.gamma||0)/35,-1,1);
+    gyroTarget.y=0;
+  },{passive:true});
+}
 async function start(){
   mode.textContent=isMobile?"touch / spatial":"mouse / generative";
   try{await orientation()}catch{}
