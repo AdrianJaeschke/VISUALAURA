@@ -44,6 +44,7 @@ src/
   interpreter.js
   camera-input.js
   scene.js
+  visual-config.js
 ```
 
 ### Dateien
@@ -53,7 +54,8 @@ src/
 - `src/cms.js` — Adapter für ein späteres `/api/cases`
 - `src/interpreter.js` — übersetzt Case-Daten in visuelle Parameter
 - `src/camera-input.js` — Webcam-Stream, reduzierte Video-Textur und Motion-Analyse
-- `src/scene.js` — Three.js-Szene, Shader, Wireframe, Flow-Lines und Headline-Struktur
+- `src/scene.js` — Three.js-Szene, Shader, Triangle-Felder, Halos und Headline-Struktur
+- `src/visual-config.js` — zentrale Parameter für Geometrie, Kamera-Delay, Reaktionsstärke und Materialien
 
 ## CMS/API-Datenmodell
 
@@ -112,3 +114,27 @@ Dann `http://localhost:8080` öffnen.
 3. WebXR-Hit-Testing für echte AR-Platzierung ergänzen
 4. Shader-Performance auf Mobile weiter optimieren
 5. Case-Medien als zusätzliche dynamische Texturen integrieren
+
+
+## Referenzmodell
+
+Die aktuelle Parametrik ist aus dem bereitgestellten Blender-Export `visual_aura.obj / visual_aura.mtl` abgeleitet. Statt die OBJ-Geometrie 1:1 zu rendern, werden ihre Proportionen als Referenzprofil verwendet:
+
+- Aura-Cluster: radial ca. 3.24 Model Units
+- Shard-Feld: radial ca. 7.10 Model Units
+- Strut-/Linienstruktur: radial ca. 7.90 Model Units
+- Floor-Referenz: ca. 64 × 64 Model Units
+
+Dadurch bleibt die Installation generativ und über `src/visual-config.js` steuerbar, orientiert sich aber räumlich an der gelieferten Datei.
+
+## Kamera-Reaktion
+
+Die Webcam-Reaktion läuft bewusst verzögert und geglättet:
+
+- Sampling ca. alle 55 ms
+- ca. 230 ms bewusster Delay
+- ca. 430 ms Low-Pass-Reaktionszeit
+- Bewegung wird als Energie, Zentrum und Richtung ausgewertet
+- alle Reaktionsstärken sind zentral in `VISUAL_PARAMS.reaction` steuerbar
+
+Für ein trägeres, fast flüssiges Verhalten einfach `delayMs` und `responseMs` erhöhen. Für direktere Reaktion entsprechend reduzieren.
