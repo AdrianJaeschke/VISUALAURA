@@ -1,4 +1,15 @@
 export const VISUAL_PARAMS={
+  generation:{
+    randomizeEachLoad:true,
+    seed:3417
+  },
+
+  bloom:{
+    strength:1.05,
+    radius:.62,
+    threshold:.72
+  },
+
   reference:{
     source:"visual_aura.obj / visual_aura.mtl",
     // Derived from the supplied Blender export. Values stay in model space.
