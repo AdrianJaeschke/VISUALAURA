@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "media/**"
+      - "tools/build-cases.py"
+      - ".github/workflows/rebuild-cases.yml"
       - "!media/cases.json"
   workflow_dispatch:
 
