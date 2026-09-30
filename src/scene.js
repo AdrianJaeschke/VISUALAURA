@@ -276,6 +276,9 @@ function createMoireMaterial(){
 }
 
 export async function createVisualScene(stage,cases,videoTexture){
+  if(document.fonts?.load){
+    try{await document.fonts.load('700 112px "Turret Road"');}catch{}
+  }
   const template=await loadTemplate();
   const G=template.groups;
 
