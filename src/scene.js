@@ -290,6 +290,65 @@ function createWireMaterial(opacity=P.material.wire.opacity){
   });
 }
 
+function createBandWireMaterial(){
+  return new THREE.ShaderMaterial({
+    transparent:true,
+    depthWrite:false,
+    blending:THREE.AdditiveBlending,
+    uniforms:{
+      uTime:{value:0},
+      uMotion:{value:0},
+      uA:{value:new THREE.Color("#74f7ff")},
+      uB:{value:new THREE.Color("#ff4ecf")},
+      uC:{value:new THREE.Color("#7b69ff")},
+      uOpacity:{value:Math.min(1,P.material.wire.opacity+.18)},
+      uGlow:{value:P.material.wire.glow},
+      uSpeed:{value:P.material.wire.speed},
+      uDepth:{value:1},
+      uCaseTwist:{value:0},
+      uHuman:{value:new THREE.Vector2()}
+    },
+    vertexShader:`
+      uniform float uTime,uMotion,uDepth,uCaseTwist;
+      uniform vec2 uHuman;
+      varying vec3 vLocal;
+
+      void main(){
+        vec3 p=position;
+        p.z*=uDepth;
+
+        float phase=fract(atan(p.y,p.x)/6.2831853+1.0);
+        float twist=(phase-.5)*uCaseTwist;
+        float ct=cos(twist);
+        float st=sin(twist);
+        p.xy=mat2(ct,-st,st,ct)*p.xy;
+
+        float pulse=sin(phase*31.4159+uTime*.42)*(.018+uMotion*.075);
+        p+=normalize(p+vec3(.001))*pulse*.35;
+        p.z+=(p.x*uHuman.x+p.y*uHuman.y)*.018;
+
+        vLocal=p;
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+      }
+    `,
+    fragmentShader:`
+      uniform float uTime,uOpacity,uGlow,uSpeed;
+      uniform vec3 uA,uB,uC;
+      varying vec3 vLocal;
+
+      void main(){
+        float t=.5+.5*sin(
+          vLocal.x*.75+vLocal.y*.82-vLocal.z*.55+uTime*uSpeed
+        );
+        vec3 col=mix(uA,uB,t);
+        col=mix(col,uC,.22+.34*sin(t*3.14159));
+        col=mix(col,vec3(1.),.28);
+        gl_FragColor=vec4(col*uGlow,uOpacity);
+      }
+    `
+  });
+}
+
 function createPointMaterial(){
   return new THREE.ShaderMaterial({
     transparent:true,
@@ -715,7 +774,7 @@ export async function createVisualScene(stage,cases,videoTexture){
   root.add(bandMesh);
 
   // Triangulated wire skin on the ribbon itself.
-  const bandWireMaterial=createWireMaterial(.78);
+  const bandWireMaterial=createBandWireMaterial();
   const bandWireGeometry=new THREE.WireframeGeometry(bandGeometry);
   const bandWire=new THREE.LineSegments(bandWireGeometry,bandWireMaterial);
   bandWire.renderOrder=5;
@@ -917,6 +976,12 @@ export function updateVisualScene(
 
   bandWireMaterial.uniforms.uTime.value=time;
   bandWireMaterial.uniforms.uMotion.value=motion;
+  bandWireMaterial.uniforms.uDepth.value=state.bandDepth;
+  bandWireMaterial.uniforms.uCaseTwist.value=
+    state.bandTwist+
+    humanVX*R.band.velocityTilt*.15-
+    humanVY*R.band.velocityTilt*.12;
+  bandWireMaterial.uniforms.uHuman.value.set(humanX,humanY);
   bandWireMaterial.uniforms.uA.value.copy(state.palette[0]);
   bandWireMaterial.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
   bandWireMaterial.uniforms.uC.value.copy(
