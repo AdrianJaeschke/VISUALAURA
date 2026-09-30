@@ -8,9 +8,14 @@ Die Installation ist jetzt modular aufgebaut und übersetzt Case-Daten in eine k
 
 ### Visuelle Layer
 
+- Turret Road als Display-Typografie für UI und Headlines
+
 - kein zentraler Blob mehr: ein räumliches Feld aus großen und hunderten kleinen Dreiecken
-- große Dreiecke spiegeln den Webcam-Input
+- viele große Dreiecke clustern sich dicht im Zentrum und nehmen nach außen schnell ab
+- große Dreiecke spiegeln den Webcam-Input heller und chrome-artiger
 - verschachtelte Triangle-Ringe und sägezahnartige Dreiecksketten
+- zusätzliche 3D-Tetraeder zwischen den 2D-Dreiecken
+- Headlines hängen an großen Triangle-Ankern und laufen zusätzlich als schmale Edge-Stränge
 - Triangle-Wireframe + irisierende Lichtkanten
 - irisierende Highlights
 - Schwarz-Weiß-Moiré und Zebra-Shader mit irisierenden Kanten
