@@ -1,20 +1,18 @@
 import * as THREE from "three";
 import {loadCases} from "./cms.js";
 import {createInterpreter} from "./interpreter.js";
-import {createCameraInput} from "./camera-input.js";
 import {createVisualScene,updateVisualScene} from "./scene.js";
 import {createCasePresentation} from "./case-presentation.js";
 import {applyStoredVisualParams,createControlConsole} from "./control-console.js";
 
 const isMobile=matchMedia("(pointer: coarse)").matches||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 const el=id=>document.getElementById(id);
-const video=el("bg-video"),mode=el("mode-label"),intro=el("intro"),dots=el("case-dots"),title=el("case-title"),kicker=el("case-kicker"),detail=el("case-detail");
+const mode=el("mode-label"),intro=el("intro"),dots=el("case-dots"),title=el("case-title"),kicker=el("case-kicker"),detail=el("case-detail");
 applyStoredVisualParams();
 
 const CASES=await loadCases();
-const cameraInput=createCameraInput(video,isMobile);
 const interpret=createInterpreter(CASES);
-const visual=await createVisualScene(el("stage"),CASES,cameraInput.texture);
+const visual=await createVisualScene(el("stage"),CASES);
 const presentation=createCasePresentation();
 createControlConsole({visual,onStructuralChange:()=>location.reload()});
 
@@ -84,8 +82,12 @@ addEventListener("keydown",e=>{
 
 async function orientation(){if(!isMobile)return;if(typeof DeviceOrientationEvent!=="undefined"&&typeof DeviceOrientationEvent.requestPermission==="function"){if(await DeviceOrientationEvent.requestPermission()!=="granted")return}
  addEventListener("deviceorientation",e=>{gyroTarget.x=THREE.MathUtils.clamp((e.gamma||0)/35,-1,1);gyroTarget.y=THREE.MathUtils.clamp(((e.beta||0)-45)/45,-1,1)})}
-async function start(withCamera){if(withCamera&&navigator.mediaDevices?.getUserMedia){try{await cameraInput.start();mode.textContent=isMobile?"camera / spatial":"webcam / reflective"}catch(e){console.warn(e);mode.textContent=isMobile?"touch / spatial":"mouse / generative"}}else mode.textContent=isMobile?"touch / spatial":"mouse / generative";try{await orientation()}catch{}intro.classList.add("hidden")}
-el("start-camera").onclick=()=>start(true);el("start-no-camera").onclick=()=>start(false);
+async function start(){
+  mode.textContent=isMobile?"touch / spatial":"mouse / generative";
+  try{await orientation()}catch{}
+  intro.classList.add("hidden");
+}
+el("start-experience").onclick=start;
 el("help-copy").textContent=isMobile
   ?"Touch / Gerät bewegen · Case wechseln fliegt am Band entlang · Medien am Viewpoint öffnen"
   :"Mouse bewegt 360° um den aktiven Viewpoint · Scroll wechselt Cases entlang des Bands";
@@ -126,11 +128,17 @@ visual.renderer.setAnimationLoop(()=>{
   pointer.lerp(isMobile?gyroTarget:targetPointer,.07);
   state=lerpState(state,targetState,.035);
 
-  if(cameraInput.analysis.active)cameraInput.update();
-
-  const cameraMotion=cameraInput.analysis.active
-    ?cameraInput.analysis
-    :{motion:0,motionX:0,motionY:0,velocityX:0,velocityY:0,centroidX:0,centroidY:0,presence:0};
+  const cameraMotion={
+    active:false,
+    motion:0,
+    motionX:0,
+    motionY:0,
+    velocityX:0,
+    velocityY:0,
+    centroidX:0,
+    centroidY:0,
+    presence:0
+  };
 
   updateVisualScene(visual,t,state,pointer,cameraMotion,activeCase);
   presentation.update(dt,t,pointer,cameraMotion);
