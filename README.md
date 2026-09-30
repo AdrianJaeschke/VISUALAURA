@@ -256,3 +256,40 @@ reaction
 material
 bloom
 ```
+
+
+## Zero-Code Case Upload
+
+Neue Cases benötigen keine Änderung mehr in `src/cases.js`.
+
+Einfach einen neuen Ordner nach `media/` hochladen:
+
+```
+media/
+  03-neuer-case/
+    hero.mp4
+    01.jpg
+    02.jpg
+    03.webp
+```
+
+Die GitHub Action `.github/workflows/rebuild-cases.yml` startet bei Änderungen unter `media/` automatisch und führt `tools/build-cases.py` aus. Daraus entsteht `media/cases.json`, das vom Frontend als primäre Case-Datenquelle geladen wird.
+
+Ohne zusätzliche Metadaten werden Titel, Palette, visuelle Intensität, Komplexität und die individuelle Aura automatisch aus Ordnername und Medienbestand generiert. Optional kann jeder Case-Ordner eine `case.json` enthalten.
+
+## Parametric Console
+
+Die Website enthält jetzt eine eingebaute Regler-Konsole. Unten rechts öffnet **PARAMS** die Konsole; alternativ funktioniert die Backtick-Taste.
+
+Live regelbar sind unter anderem:
+
+- Unreal Bloom
+- Scaffold Glow / Opacity / Breathing
+- Webcam-Reflexion
+- Moiré-Frequenzen und Kontrast
+- Outer-Wire Material
+- Kamera-/Pointer-Reaktion
+
+Strukturelle Werte wie Polygon-Anzahl, Radius oder Wire-Größe sind mit **↻** markiert. Nach Änderung genügt **REGENERATE**, die Werte werden in LocalStorage gespeichert und die Skulptur mit diesen Einstellungen neu aufgebaut.
+
+**RESET SAVED** entfernt die lokalen Overrides und lädt die Projekt-Defaults.
