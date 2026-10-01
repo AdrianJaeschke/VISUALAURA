@@ -549,7 +549,9 @@ function createBandWireMaterial(){
         p.z*=uDepth;
 
         float phase=fract(atan(p.y,p.x)/6.2831853+1.0);
-        float twist=(phase-.5)*uCaseTwist;
+        float twist=
+          sin(phase*6.2831853)*
+          uCaseTwist*.5;
         float ct=cos(twist);
         float st=sin(twist);
         p.xy=mat2(ct,-st,st,ct)*p.xy;
