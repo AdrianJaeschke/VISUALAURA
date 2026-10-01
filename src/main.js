@@ -76,12 +76,13 @@ caseOpen.addEventListener("click",async e=>{
   await presentation.open(CASES[activeCase],activeCase);
 });
 
-visual.renderer.domElement.addEventListener("click",async e=>{
+visual.renderer.domElement.addEventListener("click",e=>{
   if(!intro.classList.contains("hidden")||presentation.isOpen()||aboutOverlay.classList.contains("is-open"))return;
   const index=visual.pickCaseLabel(e.clientX,e.clientY);
   if(index==null)return;
+  // First click on a ribbon headline only navigates to that case viewpoint.
+  // Opening the case remains an explicit action via the arrow button.
   setCase(index);
-  await presentation.open(CASES[index],index);
 });
 
 function setAboutOpen(open){
@@ -147,8 +148,8 @@ async function start(){
 }
 startButton.onclick=start;
 el("help-copy").textContent=isMobile
-  ?"Swipe ↑↓: vor / zurück am Band · Neigen ↔: max. ±45° · Pfeil öffnet Case"
-  :"Scroll ↑↓: vor / zurück am Band · Maus ↔: max. ±45° · Pfeil öffnet Case";
+  ?"Swipe ↑↓: vor / zurück · Headline antippen: fokussieren · Pfeil: Case öffnen"
+  :"Scroll ↑↓: vor / zurück · Headline klicken: fokussieren · Pfeil: Case öffnen";
 
 function lerpState(a,b,t){
   return {
