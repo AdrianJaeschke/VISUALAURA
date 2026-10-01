@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-01T08:49:32",
+  "generated": "2026-10-01T09:05:02",
   "cases": [
     {
       "id": "case1",
@@ -592,6 +592,69 @@
       "hero": {
         "image": "/media/case9/1.jpg",
         "video": "/media/case9/Alpro_Video.mp4"
+      }
+    },
+    {
+      "id": "case10",
+      "slug": "case10",
+      "folder": "case10",
+      "title": "ONKOOKAY",
+      "description": "A private project to bring joy in dark hours of cancer treatment due to my private story over the last three years.\n2.jpg\nhttps://www.instagram.com/onkookay\nVideo 2.mp4\nhttps://www.youtube.com/watch?v=5LqfVLI4_aM\n3.png\nhttps://onkookay2.vercel.app/",
+      "textSource": "case10.txt",
+      "year": 2026,
+      "location": {
+        "city": "",
+        "country": "",
+        "lat": 0,
+        "lng": 0
+      },
+      "disciplines": [
+        "Visual"
+      ],
+      "tags": [
+        "Motion",
+        "Film"
+      ],
+      "palette": [
+        "#ff9361",
+        "#8dff52",
+        "#4d86ff"
+      ],
+      "intensity": 0.735,
+      "complexity": 0.684,
+      "featured": false,
+      "visual": {
+        "bandScale": 0.9702,
+        "bandDepth": 0.9484,
+        "bandTwist": -0.0283,
+        "wireScale": 0.991,
+        "typeScale": 1.0434,
+        "bloomBias": -0.0258,
+        "orbitBias": -0.0225,
+        "iridescenceBias": 0.8877
+      },
+      "presentation": {
+        "images": [
+          {
+            "src": "/media/case10/1.png",
+            "alt": "ONKOOKAY — 1"
+          },
+          {
+            "src": "/media/case10/2.jpg",
+            "alt": "ONKOOKAY — 2"
+          },
+          {
+            "src": "/media/case10/3.png",
+            "alt": "ONKOOKAY — 3"
+          }
+        ],
+        "video": {
+          "src": "/media/case10/1.mp4"
+        }
+      },
+      "hero": {
+        "image": "/media/case10/1.png",
+        "video": "/media/case10/1.mp4"
       }
     }
   ]
