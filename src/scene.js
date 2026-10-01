@@ -14,15 +14,25 @@ function rand(a,b=1){
   )%1;
 }
 
-function pushTriangle(targets,a,b,c,phase,facet){
-  const {positions,uvs,bary,phases,facets}=targets;
+function pushTriangle(
+  targets,
+  a,b,c,
+  phase,
+  facet,
+  surfaceA=[0,0],
+  surfaceB=[1,0],
+  surfaceC=[.5,1]
+){
+  const {positions,uvs,surfaceUvs,bary,phases,facets}=targets;
   const verts=[a,b,c];
   const triUvs=[[0,0],[1,0],[.5,1]];
+  const triSurface=[surfaceA,surfaceB,surfaceC];
   const triBary=[[1,0,0],[0,1,0],[0,0,1]];
 
   for(let i=0;i<3;i++){
     positions.push(verts[i].x,verts[i].y,verts[i].z);
     uvs.push(triUvs[i][0],triUvs[i][1]);
+    surfaceUvs.push(triSurface[i][0],triSurface[i][1]);
     bary.push(...triBary[i]);
     phases.push(phase);
     facets.push(facet);
@@ -103,6 +113,7 @@ function createRibbonGeometry(){
   const data={
     positions:[],
     uvs:[],
+    surfaceUvs:[],
     bary:[],
     phases:[],
     facets:[]
@@ -114,18 +125,34 @@ function createRibbonGeometry(){
     const facetA=.28+rand(i,7.1)*.72;
     const facetB=.28+rand(i,8.3)*.72;
 
+    const u0=i/n;
+    const u1=(i+1)/n;
+
     if(i%2===0){
-      pushTriangle(data,outer[i],inner[i],outer[j],phase,facetA);
-      pushTriangle(data,outer[j],inner[i],inner[j],phase,facetB);
+      pushTriangle(
+        data,outer[i],inner[i],outer[j],phase,facetA,
+        [u0,1],[u0,0],[u1,1]
+      );
+      pushTriangle(
+        data,outer[j],inner[i],inner[j],phase,facetB,
+        [u1,1],[u0,0],[u1,0]
+      );
     }else{
-      pushTriangle(data,outer[i],inner[i],inner[j],phase,facetA);
-      pushTriangle(data,outer[i],inner[j],outer[j],phase,facetB);
+      pushTriangle(
+        data,outer[i],inner[i],inner[j],phase,facetA,
+        [u0,1],[u0,0],[u1,0]
+      );
+      pushTriangle(
+        data,outer[i],inner[j],outer[j],phase,facetB,
+        [u0,1],[u1,0],[u1,1]
+      );
     }
   }
 
   const geo=new THREE.BufferGeometry();
   geo.setAttribute("position",new THREE.Float32BufferAttribute(data.positions,3));
   geo.setAttribute("uv",new THREE.Float32BufferAttribute(data.uvs,2));
+  geo.setAttribute("surfaceUv",new THREE.Float32BufferAttribute(data.surfaceUvs,2));
   geo.setAttribute("bary",new THREE.Float32BufferAttribute(data.bary,3));
   geo.setAttribute("phase",new THREE.Float32BufferAttribute(data.phases,1));
   geo.setAttribute("facet",new THREE.Float32BufferAttribute(data.facets,1));
@@ -134,7 +161,16 @@ function createRibbonGeometry(){
   return {geometry:geo,centers};
 }
 
+function createTransparentPixelTexture(){
+  const data=new Uint8Array([0,0,0,0]);
+  const texture=new THREE.DataTexture(data,1,1,THREE.RGBAFormat);
+  texture.needsUpdate=true;
+  return texture;
+}
+
 function createBandMaterial(){
+  const emptyTexture=createTransparentPixelTexture();
+
   return new THREE.ShaderMaterial({
     side:THREE.DoubleSide,
     transparent:true,
@@ -160,12 +196,27 @@ function createBandMaterial(){
       uFocusWidth:{value:P.material.band.focusWidth},
       uFocusColorBoost:{value:P.material.band.focusColorBoost},
       uFocusReflection:{value:P.material.band.focusReflection},
+      uCase0:{value:emptyTexture},
+      uCase1:{value:emptyTexture},
+      uCase2:{value:emptyTexture},
+      uCase3:{value:emptyTexture},
+      uCase4:{value:emptyTexture},
+      uCase5:{value:emptyTexture},
+      uCase6:{value:emptyTexture},
+      uCaseCount:{value:1},
+      uActiveCase:{value:0},
+      uImageGyro:{value:0},
+      uImageBaseOpacity:{value:P.material.band.imageBaseOpacity},
+      uImageTiltOpacity:{value:P.material.band.imageTiltOpacity},
+      uImageActiveBoost:{value:P.material.band.imageActiveBoost},
+      uImageShimmer:{value:P.material.band.imageShimmer},
       uDepth:{value:1},
       uCaseTwist:{value:0},
       uIridescence:{value:1}
     },
     vertexShader:`
       attribute vec3 bary;
+      attribute vec2 surfaceUv;
       attribute float phase;
       attribute float facet;
 
@@ -173,6 +224,7 @@ function createBandMaterial(){
       uniform vec2 uHuman;
 
       varying vec3 vBary;
+      varying vec2 vSurfaceUv;
       varying vec3 vWorld;
       varying vec3 vNormalW;
       varying float vPhase;
@@ -180,6 +232,7 @@ function createBandMaterial(){
 
       void main(){
         vBary=bary;
+        vSurfaceUv=surfaceUv;
         vPhase=phase;
         vFacet=facet;
 
@@ -209,9 +262,13 @@ function createBandMaterial(){
       uniform float uFresnelGlow,uWhiteSpecular,uSpeed,uIridescence;
       uniform float uPearlStrength,uFilmThickness,uWhiteness,uSpectralSaturation;
       uniform float uFocusPhase,uFocusWidth,uFocusColorBoost,uFocusReflection;
+      uniform sampler2D uCase0,uCase1,uCase2,uCase3,uCase4,uCase5,uCase6;
+      uniform float uCaseCount,uActiveCase,uImageGyro;
+      uniform float uImageBaseOpacity,uImageTiltOpacity,uImageActiveBoost,uImageShimmer;
       uniform vec3 uA,uB,uC;
 
       varying vec3 vBary;
+      varying vec2 vSurfaceUv;
       varying vec3 vWorld;
       varying vec3 vNormalW;
       varying float vPhase;
@@ -230,6 +287,16 @@ function createBandMaterial(){
       float circularDistance(float a,float b){
         float d=abs(a-b);
         return min(d,1.-d);
+      }
+
+      vec4 sampleCaseImage(float index,vec2 uv){
+        if(index<.5)return texture2D(uCase0,uv);
+        if(index<1.5)return texture2D(uCase1,uv);
+        if(index<2.5)return texture2D(uCase2,uv);
+        if(index<3.5)return texture2D(uCase3,uv);
+        if(index<4.5)return texture2D(uCase4,uv);
+        if(index<5.5)return texture2D(uCase5,uv);
+        return texture2D(uCase6,uv);
       }
 
       vec3 thinFilmPearl(float cosTheta,float phaseOffset){
@@ -320,6 +387,71 @@ function createBandMaterial(){
           reflectionTint*(1.02+reflectionSweep*.22),
           clamp(reflectionMask*.44,0.,.58)
         );
+
+        // The case artwork is mapped into the actual ribbon surface UVs.
+        // Horizontal device tilt controls how strongly it emerges from the pearl.
+        float safeCount=max(1.,uCaseCount);
+        float caseIndex=floor(clamp(vSurfaceUv.x,0.,.99999)*safeCount);
+        vec2 imageUv=vec2(
+          1.-fract(vSurfaceUv.x*safeCount),
+          clamp(vSurfaceUv.y,0.,1.)
+        );
+
+        float gyro=clamp(uImageGyro,-1.,1.);
+        float tiltAmount=smoothstep(.035,.92,abs(gyro));
+        imageUv.x+=gyro*(imageUv.y-.5)*.045;
+        imageUv.y+=sin(imageUv.x*9.+uTime*.10)*gyro*.008;
+        imageUv=clamp(imageUv,vec2(.002),vec2(.998));
+
+        vec4 caseImage=sampleCaseImage(caseIndex,imageUv);
+        float imageLuma=luma(caseImage.rgb);
+        float activeMask=1.-step(.49,abs(caseIndex-uActiveCase));
+
+        float faceShimmer=.5+.5*sin(
+          vFacet*11.7+
+          vPhase*28.+
+          uTime*.48+
+          gyro*5.2
+        );
+        vec3 imageIris=thinFilmPearl(
+          clamp(cosTheta*.84+.08,0.,1.),
+          imageUv.x*2.4+imageUv.y*1.7+gyro*2.2
+        );
+
+        vec3 imageColor=mix(
+          vec3(imageLuma),
+          caseImage.rgb,
+          .72
+        );
+        imageColor=mix(
+          imageColor,
+          imageColor*(.62+imageIris*.72),
+          clamp(uImageShimmer*(.26+faceShimmer*.74),0.,.86)
+        );
+
+        float imageOpacity=
+          uImageBaseOpacity+
+          tiltAmount*uImageTiltOpacity+
+          activeMask*uImageActiveBoost;
+
+        imageOpacity*=
+          caseImage.a*
+          (.60+.40*faceShimmer)*
+          mix(.72,1.,activeMask*focusMask);
+
+        col=mix(
+          col,
+          imageColor*(1.02+fres*.18),
+          clamp(imageOpacity,0.,.72)
+        );
+
+        col+=
+          imageIris*
+          caseImage.a*
+          imageOpacity*
+          faceShimmer*
+          fres*
+          .10;
 
         float whiteSpec=pow(max(cosTheta,0.),18.)*uWhiteSpecular;
         whiteSpec+=
@@ -734,102 +866,12 @@ function createCaseTriangleGeometry(){
   return geometry;
 }
 
-function createReflectionMaterial(texture,tint){
-  return new THREE.ShaderMaterial({
-    side:THREE.DoubleSide,
-    transparent:true,
-    depthWrite:false,
-    depthTest:true,
-    blending:THREE.AdditiveBlending,
-    toneMapped:false,
-    uniforms:{
-      uMap:{value:texture},
-      uTint:{value:new THREE.Color(tint||"#ffffff")},
-      uOpacity:{value:0},
-      uTime:{value:0}
-    },
-    vertexShader:`
-      varying vec2 vUv;
-      varying vec3 vWorld;
-      varying vec3 vNormalW;
-
-      void main(){
-        vUv=uv;
-        vec4 world=modelMatrix*vec4(position,1.);
-        vWorld=world.xyz;
-        vNormalW=normalize(mat3(modelMatrix)*normal);
-        gl_Position=projectionMatrix*viewMatrix*world;
-      }
-    `,
-    fragmentShader:`
-      uniform sampler2D uMap;
-      uniform vec3 uTint;
-      uniform float uOpacity,uTime;
-
-      varying vec2 vUv;
-      varying vec3 vWorld;
-      varying vec3 vNormalW;
-
-      float luma(vec3 c){
-        return dot(c,vec3(.299,.587,.114));
-      }
-
-      void main(){
-        vec2 uv=vUv;
-        uv.x=1.-uv.x;
-
-        // A tiny optical wobble keeps the image reading as reflection,
-        // not as a rectangular texture pasted onto the ribbon.
-        uv.x+=sin(uv.y*22.+uTime*.35)*.008;
-        uv.y+=sin(uv.x*16.-uTime*.22)*.004;
-
-        vec4 tex=texture2D(uMap,uv);
-        float lum=luma(tex.rgb);
-
-        float edgeX=
-          smoothstep(0.,.16,vUv.x)*
-          smoothstep(0.,.16,1.-vUv.x);
-        float edgeY=
-          smoothstep(0.,.20,vUv.y)*
-          smoothstep(0.,.20,1.-vUv.y);
-        float edge=edgeX*edgeY;
-
-        vec3 N=normalize(vNormalW);
-        vec3 V=normalize(cameraPosition-vWorld);
-        float grazing=pow(1.-abs(dot(N,V)),.55);
-        float shimmer=.86+.14*sin(vUv.y*42.+uTime*.55);
-
-        vec3 reflected=mix(vec3(lum),tex.rgb,.48);
-        reflected=mix(reflected,uTint,.12);
-        reflected*=1.04+grazing*.28;
-
-        float alpha=
-          uOpacity*
-          edge*
-          (.22+lum*.92)*
-          (.58+grazing*.42)*
-          shimmer*
-          tex.a;
-
-        if(alpha<.006)discard;
-        gl_FragColor=vec4(reflected,alpha);
-      }
-    `
-  });
-}
-
 function createCaseBandAnchors(cases){
   const group=new THREE.Group();
   const triangleGeometry=createCaseTriangleGeometry();
-  const fallbackPixel=new Uint8Array([255,255,255,255]);
-  const fallbackTexture=new THREE.DataTexture(fallbackPixel,1,1,THREE.RGBAFormat);
-  fallbackTexture.colorSpace=THREE.SRGBColorSpace;
-  fallbackTexture.needsUpdate=true;
-  const loader=new THREE.TextureLoader();
 
   const anchors=(cases||[]).map((caseData,index)=>{
     const color=caseData?.palette?.[0]||"#ffffff";
-
     const markerMaterial=new THREE.MeshBasicMaterial({
       color,
       transparent:true,
@@ -840,44 +882,158 @@ function createCaseBandAnchors(cases){
       toneMapped:false,
       side:THREE.DoubleSide
     });
+
     const marker=new THREE.Mesh(triangleGeometry,markerMaterial);
     marker.renderOrder=315;
     marker.userData.caseIndex=index;
-
-    const reflectionMaterial=createReflectionMaterial(fallbackTexture,color);
-    const reflection=new THREE.Mesh(
-      new THREE.PlaneGeometry(1,1),
-      reflectionMaterial
-    );
-    reflection.renderOrder=7;
-    reflection.userData.caseIndex=index;
-    reflection.userData.ready=false;
-    reflection.userData.aspect=16/9;
-
-    const src=caseHeroSource(caseData);
-    if(src){
-      loader.load(
-        src,
-        texture=>{
-          texture.colorSpace=THREE.SRGBColorSpace;
-          texture.minFilter=THREE.LinearFilter;
-          texture.magFilter=THREE.LinearFilter;
-          reflectionMaterial.uniforms.uMap.value=texture;
-          const width=texture.image?.naturalWidth||texture.image?.width||16;
-          const height=texture.image?.naturalHeight||texture.image?.height||9;
-          reflection.userData.aspect=Math.max(.25,Math.min(4,width/Math.max(1,height)));
-          reflection.userData.ready=true;
-        },
-        undefined,
-        ()=>{reflection.userData.ready=false;}
-      );
-    }
-
-    group.add(reflection,marker);
-    return {marker,reflection};
+    group.add(marker);
+    return {marker};
   });
 
   return {group,anchors};
+}
+
+function bindCaseBandTextures(material,cases){
+  const loader=new THREE.TextureLoader();
+  const supported=(cases||[]).slice(0,7);
+  material.uniforms.uCaseCount.value=Math.max(1,supported.length);
+
+  supported.forEach((caseData,index)=>{
+    const src=caseHeroSource(caseData);
+    if(!src)return;
+
+    loader.load(
+      src,
+      texture=>{
+        texture.colorSpace=THREE.SRGBColorSpace;
+        texture.wrapS=THREE.ClampToEdgeWrapping;
+        texture.wrapT=THREE.ClampToEdgeWrapping;
+        texture.minFilter=THREE.LinearMipmapLinearFilter;
+        texture.magFilter=THREE.LinearFilter;
+        material.uniforms[`uCase${index}`].value=texture;
+      },
+      undefined,
+      ()=>{}
+    );
+  });
+}
+
+function createDreamHaloPass(){
+  return new ShaderPass({
+    uniforms:{
+      tDiffuse:{value:null},
+      uTime:{value:0},
+      uCenter:{value:new THREE.Vector2(.5,.5)},
+      uAspect:{value:innerWidth/innerHeight},
+      uStrength:{value:0},
+      uGhostStrength:{value:0},
+      uTilt:{value:0},
+      uA:{value:new THREE.Color("#74f7ff")},
+      uB:{value:new THREE.Color("#ff4ecf")},
+      uC:{value:new THREE.Color("#7b69ff")}
+    },
+    vertexShader:`
+      varying vec2 vUv;
+      void main(){
+        vUv=uv;
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+      }
+    `,
+    fragmentShader:`
+      uniform sampler2D tDiffuse;
+      uniform float uTime,uAspect,uStrength,uGhostStrength,uTilt;
+      uniform vec2 uCenter;
+      uniform vec3 uA,uB,uC;
+      varying vec2 vUv;
+
+      float ring(vec2 uv,vec2 center,float radius,float width){
+        vec2 p=uv-center;
+        p.x*=uAspect;
+        float d=length(p);
+        return exp(-pow((d-radius)/max(width,.0001),2.));
+      }
+
+      float glow(vec2 uv,vec2 center,float size){
+        vec2 p=uv-center;
+        p.x*=uAspect;
+        float d=length(p);
+        return exp(-d*d/max(.0001,size));
+      }
+
+      float tri(vec2 p,float size){
+        p.x*=uAspect;
+        p/=max(size,.0001);
+        p.y+=.18;
+        float k=sqrt(3.);
+        p.x=abs(p.x)-1.;
+        p.y=p.y+1./k;
+        if(p.x+k*p.y>0.){
+          p=vec2(p.x-k*p.y,-k*p.x-p.y)/2.;
+        }
+        p.x-=clamp(p.x,-2.,0.);
+        return exp(-dot(p,p)*8.);
+      }
+
+      vec3 spectrum(float t){
+        vec3 wave=.5+.5*cos(6.28318*(t+vec3(0.,.31,.63)));
+        vec3 ab=mix(uA,uB,wave.x);
+        return mix(ab,uC,wave.y*.58);
+      }
+
+      vec3 ghost(vec2 uv,vec2 center,float offset,float size,float seed){
+        vec2 axis=center-vec2(.5);
+        vec2 pos=vec2(.5)-axis*offset;
+        float g=glow(uv,pos,size*size*.56);
+        float h=ring(uv,pos,size,size*.34);
+        float t=tri(uv-pos,size*1.18);
+        vec3 col=spectrum(seed+length(uv-pos)*3.8+uTilt*.18+uTime*.018);
+        return col*(g*.18+h*.52+t*.22);
+      }
+
+      void main(){
+        vec4 src=texture2D(tDiffuse,vUv);
+        vec2 c=uCenter;
+
+        vec2 p=vUv-c;
+        p.x*=uAspect;
+        float d=length(p);
+
+        float r1=ring(vUv,c,.085,.016);
+        float r2=ring(vUv,c,.155,.028);
+        float r3=ring(vUv,c,.255,.052);
+        float core=glow(vUv,c,.008);
+
+        vec3 iris=spectrum(d*4.8+uTilt*.38+uTime*.022);
+        vec3 iris2=spectrum(d*7.6-uTilt*.22-uTime*.016+.27);
+
+        vec3 halo=
+          iris*r1*1.15+
+          iris2*r2*.72+
+          mix(iris,iris2,.5)*r3*.30+
+          vec3(1.)*core*.22;
+
+        vec3 ghosts=vec3(0.);
+        ghosts+=ghost(vUv,c,.42,.045,.08);
+        ghosts+=ghost(vUv,c,.78,.075,.35);
+        ghosts+=ghost(vUv,c,1.18,.040,.64);
+
+        float screenFade=
+          smoothstep(.02,.13,c.x)*
+          smoothstep(.02,.13,1.-c.x)*
+          smoothstep(.02,.13,c.y)*
+          smoothstep(.02,.13,1.-c.y);
+
+        vec3 flare=
+          halo*uStrength+
+          ghosts*uGhostStrength;
+
+        gl_FragColor=vec4(
+          src.rgb+flare*screenFade,
+          src.a
+        );
+      }
+    `
+  });
 }
 
 function createGlobalDitherPass(){
@@ -976,11 +1132,13 @@ export async function createVisualScene(stage,cases){
     P.bloom.threshold
   );
   const ditherPass=createGlobalDitherPass();
+  const haloPass=createDreamHaloPass();
   const outputPass=new OutputPass();
 
   composer.addPass(renderPass);
   composer.addPass(bloomPass);
   composer.addPass(ditherPass);
+  composer.addPass(haloPass);
   composer.addPass(outputPass);
 
   const root=new THREE.Group();
@@ -1001,6 +1159,7 @@ export async function createVisualScene(stage,cases){
     .5
   );
   const bandMaterial=createBandMaterial();
+  bindCaseBandTextures(bandMaterial,cases);
   const bandMesh=new THREE.Mesh(bandGeometry,bandMaterial);
   bandMesh.renderOrder=4;
   root.add(bandMesh);
@@ -1020,7 +1179,7 @@ export async function createVisualScene(stage,cases){
   const typography=createTypography(cases);
   scene.add(typography.group);
 
-  // Colored case markers plus mirrored hero motifs projected onto the ribbon.
+  // Colored case markers; hero motifs are sampled directly by the ribbon shader.
   const caseBandAnchors=createCaseBandAnchors(cases);
   scene.add(caseBandAnchors.group);
 
@@ -1180,6 +1339,13 @@ export async function createVisualScene(stage,cases){
     bandMaterial.uniforms.uFocusWidth.value=P.material.band.focusWidth;
     bandMaterial.uniforms.uFocusColorBoost.value=P.material.band.focusColorBoost;
     bandMaterial.uniforms.uFocusReflection.value=P.material.band.focusReflection;
+    bandMaterial.uniforms.uImageBaseOpacity.value=P.material.band.imageBaseOpacity;
+    bandMaterial.uniforms.uImageTiltOpacity.value=P.material.band.imageTiltOpacity;
+    bandMaterial.uniforms.uImageActiveBoost.value=P.material.band.imageActiveBoost;
+    bandMaterial.uniforms.uImageShimmer.value=P.material.band.imageShimmer;
+
+    haloPass.uniforms.uStrength.value=0;
+    haloPass.uniforms.uGhostStrength.value=0;
 
     bandWireMaterial.uniforms.uGlow.value=P.material.wire.glow;
     bandWireMaterial.uniforms.uOpacity.value=Math.min(1,P.material.wire.opacity+.18);
@@ -1212,13 +1378,14 @@ export async function createVisualScene(stage,cases){
 
     composer.setPixelRatio(ratio);
     composer.setSize(innerWidth,innerHeight);
+    haloPass.uniforms.uAspect.value=innerWidth/innerHeight;
     wireAura.pointMat.uniforms.uPixelRatio.value=ratio;
   }
 
   setCase(0);
 
   return {
-    scene,camera,renderer,composer,bloomPass,ditherPass,root,
+    scene,camera,renderer,composer,bloomPass,ditherPass,haloPass,root,
     bandMesh,bandMaterial,bandWire,bandWireMaterial,
     wireAura,
     typography,
@@ -1258,7 +1425,7 @@ export function updateVisualScene(
     root,camera,
     bandMesh,bandMaterial,bandWireMaterial,
     wireAura,typography,caseBandAnchors,
-    bloomPass,ditherPass,
+    bloomPass,ditherPass,haloPass,
     cameraRig,
     key,lightA,lightB
   }=visual;
@@ -1370,6 +1537,12 @@ export function updateVisualScene(
   bandMaterial.uniforms.uFocusWidth.value=P.material.band.focusWidth;
   bandMaterial.uniforms.uFocusColorBoost.value=P.material.band.focusColorBoost;
   bandMaterial.uniforms.uFocusReflection.value=P.material.band.focusReflection;
+  bandMaterial.uniforms.uActiveCase.value=activeCase;
+  bandMaterial.uniforms.uImageGyro.value=pointer.x;
+  bandMaterial.uniforms.uImageBaseOpacity.value=P.material.band.imageBaseOpacity;
+  bandMaterial.uniforms.uImageTiltOpacity.value=P.material.band.imageTiltOpacity;
+  bandMaterial.uniforms.uImageActiveBoost.value=P.material.band.imageActiveBoost;
+  bandMaterial.uniforms.uImageShimmer.value=P.material.band.imageShimmer;
 
   bandWireMaterial.uniforms.uTime.value=time;
   bandWireMaterial.uniforms.uMotion.value=motion;
@@ -1489,9 +1662,8 @@ export function updateVisualScene(
     if(active&&mesh.material.opacity<.025)mesh.visible=false;
   });
 
-  // Mark each case point with a colored triangle and stage one case-folder
-  // hero image as a mirrored light reflection directly on the band.
-  caseBandAnchors.anchors.forEach(({marker,reflection},index)=>{
+  // Case points stay legible as colored triangles; imagery itself lives in the band faces.
+  caseBandAnchors.anchors.forEach(({marker},index)=>{
     const frame=visual.getCaseFrame(index,state,0,0);
     const active=index===activeCase;
 
@@ -1509,6 +1681,7 @@ export function updateVisualScene(
       .16
     );
     marker.quaternion.slerp(orientation,.18);
+
     const markerScale=THREE.MathUtils.lerp(
       marker.scale.x||1,
       active?1.18:.78,
@@ -1520,32 +1693,37 @@ export function updateVisualScene(
       active?1:.72,
       .12
     );
-
-    reflection.position.lerp(
-      frame.target.clone().addScaledVector(frame.normal,.035),
-      .14
-    );
-    reflection.quaternion.slerp(orientation,.16);
-
-    const aspect=reflection.userData.aspect||16/9;
-    let width=1.5;
-    let height=width/aspect;
-    if(height>.70){
-      height=.70;
-      width=height*aspect;
-    }
-    width=Math.min(width,1.62);
-    reflection.scale.x=THREE.MathUtils.lerp(reflection.scale.x,width,.12);
-    reflection.scale.y=THREE.MathUtils.lerp(reflection.scale.y,height,.12);
-    reflection.scale.z=1;
-
-    reflection.material.uniforms.uTime.value=time;
-    reflection.material.uniforms.uOpacity.value=THREE.MathUtils.lerp(
-      reflection.material.uniforms.uOpacity.value,
-      reflection.userData.ready ? (active ? .34 : .055) : 0,
-      active ? .09 : .055
-    );
   });
+
+  // Variant B: dreamlike iris halo + triangular ghosts around the active case focus.
+  const flarePoint=view.target.clone()
+    .addScaledVector(view.normal,.10)
+    .project(camera);
+
+  haloPass.uniforms.uTime.value=time;
+  haloPass.uniforms.uCenter.value.set(
+    flarePoint.x*.5+.5,
+    flarePoint.y*.5+.5
+  );
+  haloPass.uniforms.uAspect.value=innerWidth/innerHeight;
+  haloPass.uniforms.uTilt.value=pointer.x;
+  haloPass.uniforms.uA.value.copy(state.palette[0]);
+  haloPass.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
+  haloPass.uniforms.uC.value.copy(
+    state.palette[2]||state.palette[1]||state.palette[0]
+  );
+
+  const tiltEnergy=Math.min(1,Math.abs(pointer.x));
+  haloPass.uniforms.uStrength.value=THREE.MathUtils.lerp(
+    haloPass.uniforms.uStrength.value,
+    P.postfx.halo.strength*(.58+tiltEnergy*.42),
+    .075
+  );
+  haloPass.uniforms.uGhostStrength.value=THREE.MathUtils.lerp(
+    haloPass.uniforms.uGhostStrength.value,
+    P.postfx.halo.ghostStrength*(.42+tiltEnergy*.58),
+    .065
+  );
 
   lightA.color.copy(state.palette[0]);
   lightB.color.copy(state.palette[1]||state.palette[0]);

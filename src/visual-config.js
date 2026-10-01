@@ -16,6 +16,11 @@ export const VISUAL_PARAMS={
       strength:.52,
       scale:8,
       levels:15
+    },
+    halo:{
+      // Variant B: editorial / dreamlike lens aura.
+      strength:.30,
+      ghostStrength:.16
     }
   },
 
@@ -118,7 +123,11 @@ export const VISUAL_PARAMS={
       spectralSaturation:1.5,
       focusWidth:.16,
       focusColorBoost:.62,
-      focusReflection:.72
+      focusReflection:.72,
+      imageBaseOpacity:.025,
+      imageTiltOpacity:.38,
+      imageActiveBoost:.18,
+      imageShimmer:.68
     },
 
     wire:{
