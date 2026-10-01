@@ -829,7 +829,7 @@ function createCaseSurfaceMaterial(texture){
       uShimmer:{value:P.material.band.imageShimmer},
       uActive:{value:0},
       uTexAspect:{value:16/9},
-      uPatchAspect:{value:2.6}
+      uPatchAspect:{value:1}
     },
     vertexShader:`
       attribute float phase;
@@ -959,6 +959,7 @@ function createCaseSurfaceLayers(cases,bandGeometry){
     const normals=[];
     const uvs=[];
     const phases=[];
+    const surfaceSamples=new Map();
 
     const start=caseIndex/count;
     const end=(caseIndex+1)/count;
@@ -986,8 +987,27 @@ function createCaseSurfaceLayers(cases,bandGeometry){
           0,
           1
         );
-        uvs.push(1-localU,surface.getY(idx));
-        phases.push(phase.getX(idx));
+        const surfaceV=surface.getY(idx);
+        const phaseValue=phase.getX(idx);
+        uvs.push(1-localU,surfaceV);
+        phases.push(phaseValue);
+
+        // Measure the actual ribbon patch in 3D so texture cover/crop
+        // respects the physical case surface instead of a guessed ratio.
+        const key=phaseValue.toFixed(6);
+        let sample=surfaceSamples.get(key);
+        if(!sample){
+          sample={phase:phaseValue,inner:[],outer:[],all:[]};
+          surfaceSamples.set(key,sample);
+        }
+        const point=new THREE.Vector3(
+          pos.getX(idx),
+          pos.getY(idx),
+          pos.getZ(idx)
+        );
+        sample.all.push(point);
+        if(surfaceV<.25)sample.inner.push(point);
+        if(surfaceV>.75)sample.outer.push(point);
       }
     }
 
@@ -1010,6 +1030,47 @@ function createCaseSurfaceLayers(cases,bandGeometry){
     );
     geometry.computeBoundingSphere();
 
+    const averagePoint=points=>{
+      if(!points.length)return null;
+      const out=new THREE.Vector3();
+      points.forEach(point=>out.add(point));
+      return out.multiplyScalar(1/points.length);
+    };
+
+    const orderedSamples=[...surfaceSamples.values()]
+      .sort((a,b)=>a.phase-b.phase);
+
+    const centers=[];
+    let widthSum=0;
+    let widthCount=0;
+
+    orderedSamples.forEach(sample=>{
+      const center=averagePoint(sample.all);
+      if(center)centers.push(center);
+
+      const innerPoint=averagePoint(sample.inner);
+      const outerPoint=averagePoint(sample.outer);
+      if(innerPoint&&outerPoint){
+        widthSum+=innerPoint.distanceTo(outerPoint);
+        widthCount++;
+      }
+    });
+
+    let patchLength=0;
+    for(let i=1;i<centers.length;i++){
+      patchLength+=centers[i-1].distanceTo(centers[i]);
+    }
+
+    const patchWidth=widthCount
+      ? widthSum/widthCount
+      : Math.max(.001,P.composition.band.width);
+
+    const patchAspect=THREE.MathUtils.clamp(
+      patchLength/Math.max(.001,patchWidth),
+      .45,
+      4.5
+    );
+
     const fallback=new THREE.DataTexture(
       new Uint8Array([18,18,22,255]),
       1,1,
@@ -1019,9 +1080,12 @@ function createCaseSurfaceLayers(cases,bandGeometry){
     fallback.needsUpdate=true;
 
     const material=createCaseSurfaceMaterial(fallback);
+    material.uniforms.uPatchAspect.value=patchAspect;
+
     const mesh=new THREE.Mesh(geometry,material);
     mesh.renderOrder=4.4;
     mesh.userData.caseIndex=caseIndex;
+    mesh.visible=caseIndex===0;
     group.add(mesh);
 
     materials.push(material);
@@ -1558,6 +1622,10 @@ export function updateVisualScene(
   bandMaterial.uniforms.uFocusReflection.value=P.material.band.focusReflection;
 
   caseSurfaceLayers.materials.forEach((material,index)=>{
+    const active=index===activeCase;
+    caseSurfaceLayers.meshes[index].visible=active;
+    if(!active)return;
+
     material.uniforms.uTime.value=time;
     material.uniforms.uMotion.value=motion;
     material.uniforms.uHuman.value.set(humanX,humanY);
@@ -1569,9 +1637,9 @@ export function updateVisualScene(
     material.uniforms.uGyro.value=pointer.x;
     material.uniforms.uBaseOpacity.value=P.material.band.imageBaseOpacity;
     material.uniforms.uTiltOpacity.value=P.material.band.imageTiltOpacity;
-    material.uniforms.uActiveBoost.value=P.material.band.imageActiveBoost;
+    material.uniforms.uActiveBoost.value=0;
     material.uniforms.uShimmer.value=P.material.band.imageShimmer;
-    material.uniforms.uActive.value=index===activeCase?1:0;
+    material.uniforms.uActive.value=1;
   });
 
   bandWireMaterial.uniforms.uTime.value=time;
