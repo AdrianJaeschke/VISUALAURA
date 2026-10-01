@@ -21,12 +21,19 @@
 
   <div class="hud">
     <div class="brand"><strong>ADRIAN JÄSCHKE</strong>VISUAL AURA / interactive portfolio</div>
-    <div class="mode" id="mode-label">idle</div>
+    <div class="hud-actions">
+      <div class="mode" id="mode-label">idle</div>
+      <button class="about-trigger" id="about-trigger" type="button">Über mich</button>
+    </div>
 
     <div class="case-meta">
       <div class="case-kicker" id="case-kicker">Case 01</div>
       <h2 class="case-title" id="case-title">Signal Garden</h2>
       <div class="case-detail" id="case-detail"></div>
+      <button class="case-open" id="case-open" type="button" aria-label="Aktiven Case öffnen">
+        <span>Case öffnen</span>
+        <span class="case-open__arrow" aria-hidden="true">↗</span>
+      </button>
     </div>
 
     <div class="help" id="help-copy">
@@ -40,15 +47,50 @@
     <div class="panel">
       <div class="intro-kicker">VISUAL AURA / INTERACTIVE PORTFOLIO</div>
       <h1>ADRIAN<br />JÄSCHKE</h1>
-      <ul class="intro-points">
-        <li>Reaktive polygonale Band-Installation mit transluzentem Perlmutt, blickwinkelabhängiger Irisierung und räumlichen Case-Viewpoints.</li>
-        <li>„Visual Aura“ basiert auf einer persönlichen Erfahrung: Während einer Antikörper-Krebstherapie hatte ich häufig eine visuelle Aura, die meine Sichtweisen zeitweise geprägt hat.</li>
-      </ul>
+      <div class="intro-loading" id="intro-loading" aria-live="polite">
+        <div class="loading-label">
+          <span id="intro-loading-label">Experience laden</span>
+          <span id="intro-loading-value">0%</span>
+        </div>
+        <div class="loading-track" aria-hidden="true"><span id="intro-loading-bar"></span></div>
+      </div>
       <div class="actions">
-        <button class="primary" id="start-experience">Experience starten</button>
+        <button class="primary" id="start-experience" disabled>Experience starten</button>
       </div>
     </div>
   </div>
+
+  <section class="about-overlay" id="about-overlay" aria-hidden="true">
+    <button class="about-overlay__backdrop" id="about-backdrop" type="button" aria-label="Über mich schließen"></button>
+    <article class="about-overlay__panel" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <header class="about-overlay__header">
+        <div>
+          <div class="about-overlay__kicker">Experience / About</div>
+          <h2 id="about-title">Über mich</h2>
+        </div>
+        <button class="about-overlay__close" id="about-close" type="button">Close</button>
+      </header>
+      <div class="about-overlay__grid">
+        <section class="about-card about-card--aura">
+          <div class="about-card__eyebrow">Visual Aura</div>
+          <h3>Wahrnehmung als Interface</h3>
+          <p>Visual Aura übersetzt subjektive Wahrnehmung in eine räumliche, reaktive Oberfläche. Das Band trägt die Cases als zusammenhängende Experience: Blickwinkel, Bewegung, Material und Licht verändern, wie Arbeit lesbar wird.</p>
+          <p>Die Navigation folgt deshalb nicht einer klassischen Liste, sondern bewegt sich entlang des Bands. Seitliche Neigung verändert nur den Blickwinkel, während vor und zurück bewusst über die vertikale Geste gesteuert wird.</p>
+        </section>
+        <section class="about-card about-card--profile">
+          <div class="about-card__eyebrow">Profil</div>
+          <h3>Adrian Jäschke</h3>
+          <p>Selected interactive, spatial and digital work.</p>
+          <div class="profile-milestones">
+            <div class="profile-milestones__title">LinkedIn Milestones</div>
+            <div class="profile-milestones__empty" id="profile-milestones">
+              Verifizierte Stationen werden angezeigt, sobald das LinkedIn-Profil eindeutig zugeordnet ist.
+            </div>
+          </div>
+        </section>
+      </div>
+    </article>
+  </section>
 
   <script type="importmap">
     {

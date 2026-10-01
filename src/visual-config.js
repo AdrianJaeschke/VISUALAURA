@@ -59,7 +59,7 @@ export const VISUAL_PARAMS={
       lookAhead:.022,
       transitionResponse:.036,
       targetResponse:.052,
-      orbitAzimuth:Math.PI,
+      orbitAzimuth:Math.PI/4,
       orbitElevation:.62,
       pointerOrbit:.92,
       motionOrbit:.12,
