@@ -461,3 +461,21 @@ button:disabled{opacity:.42;cursor:default;transform:none!important}
   .about-overlay__grid{grid-template-columns:1fr}
   .about-card{min-height:0;padding:22px 18px}
 }
+
+
+/* Career timeline derived from the supplied profile screenshot */
+.career-company{margin-top:16px;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.career-company__name{font:700 18px/1.1 var(--font-display);text-transform:uppercase;letter-spacing:.02em}
+.career-company__duration{margin-top:5px;color:rgba(255,255,255,.46);font-size:11px}
+.career-timeline{position:relative;margin-top:18px;padding-left:22px}
+.career-timeline::before{content:"";position:absolute;left:5px;top:7px;bottom:9px;width:1px;background:rgba(255,255,255,.15)}
+.career-item{position:relative;padding:0 0 24px 8px}
+.career-item:last-child{padding-bottom:6px}
+.career-item__dot{position:absolute;left:-21px;top:5px;width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.68);box-shadow:0 0 0 4px rgba(255,255,255,.035)}
+.career-item h4{margin:0 0 5px;font:600 16px/1.15 var(--font-display);text-transform:uppercase;letter-spacing:.01em}
+.career-item__meta,.career-item__location{color:rgba(255,255,255,.48);font-size:11px;line-height:1.5}
+.career-item__skill{margin-top:9px;color:rgba(255,255,255,.78);font:500 11px/1.4 var(--font-display)}
+.career-item__skill::before{content:"◇";margin-right:7px;color:var(--cyan)}
+.education-block{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10)}
+.education-block__school{margin-top:12px;font:600 15px/1.2 var(--font-display);text-transform:uppercase}
+.education-block__degree{margin-top:4px;color:rgba(255,255,255,.48);font-size:11px}
