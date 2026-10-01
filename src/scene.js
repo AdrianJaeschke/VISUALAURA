@@ -746,9 +746,10 @@ function createTypography(cases){
         height:360
       },
       new THREE.Vector3(),
-      new THREE.Vector3(1.62,.58,1)
+      new THREE.Vector3(3.24,.58,1)
     );
     label.userData.caseIndex=index;
+    label.userData.baseScaleX=3.24;
     label.userData.isCaseLabel=true;
     label.material.opacity=.76;
     group.add(label);
@@ -829,7 +830,8 @@ function createCaseSurfaceMaterial(texture){
       uShimmer:{value:P.material.band.imageShimmer},
       uActive:{value:0},
       uTexAspect:{value:16/9},
-      uPatchAspect:{value:1}
+      uPatchAspect:{value:1},
+      uContain:{value:innerWidth>760?1:0}
     },
     vertexShader:`
       attribute float phase;
@@ -877,7 +879,7 @@ function createCaseSurfaceMaterial(texture){
       uniform sampler2D uMap;
       uniform float uTime,uGyro,uBaseOpacity,uTiltOpacity;
       uniform float uActiveBoost,uShimmer,uActive;
-      uniform float uTexAspect,uPatchAspect;
+      uniform float uTexAspect,uPatchAspect,uContain;
 
       varying vec2 vUv;
       varying vec3 vWorld;
@@ -886,13 +888,26 @@ function createCaseSurfaceMaterial(texture){
       void main(){
         vec2 uv=vUv;
 
-        // "Cover" crop, so artwork keeps its original proportions instead of stretching.
-        if(uTexAspect>uPatchAspect){
-          float scale=uPatchAspect/uTexAspect;
-          uv.x=(uv.x-.5)*scale+.5;
+        // Desktop uses contain: show the complete artwork without cropping.
+        // Mobile keeps cover so the narrow viewport stays visually filled.
+        if(uContain>.5){
+          if(uTexAspect>uPatchAspect){
+            float visibleHeight=uPatchAspect/uTexAspect;
+            if(abs(uv.y-.5)>.5*visibleHeight)discard;
+            uv.y=(uv.y-.5)/max(.0001,visibleHeight)+.5;
+          }else{
+            float visibleWidth=uTexAspect/uPatchAspect;
+            if(abs(uv.x-.5)>.5*visibleWidth)discard;
+            uv.x=(uv.x-.5)/max(.0001,visibleWidth)+.5;
+          }
         }else{
-          float scale=uTexAspect/uPatchAspect;
-          uv.y=(uv.y-.5)*scale+.5;
+          if(uTexAspect>uPatchAspect){
+            float scale=uPatchAspect/uTexAspect;
+            uv.x=(uv.x-.5)*scale+.5;
+          }else{
+            float scale=uTexAspect/uPatchAspect;
+            uv.y=(uv.y-.5)*scale+.5;
+          }
         }
 
         float gyro=clamp(uGyro,-1.,1.);
@@ -1460,6 +1475,9 @@ export async function createVisualScene(stage,cases){
 
     composer.setPixelRatio(ratio);
     composer.setSize(innerWidth,innerHeight);
+    caseSurfaceLayers.materials.forEach(material=>{
+      material.uniforms.uContain.value=innerWidth>760?1:0;
+    });
     wireAura.pointMat.uniforms.uPixelRatio.value=ratio;
   }
 
@@ -1747,9 +1765,10 @@ export function updateVisualScene(
     if(!active)mesh.visible=true;
 
     const targetScale=.82*state.typeScale*P.composition.typography.scale;
-    const current=mesh.scale.x/1.62;
+    const baseScaleX=mesh.userData.baseScaleX||3.24;
+    const current=mesh.scale.x/baseScaleX;
     const nextScale=THREE.MathUtils.lerp(current,targetScale,.10);
-    mesh.scale.set(1.62*nextScale,.58*nextScale,1);
+    mesh.scale.set(baseScaleX*nextScale,.58*nextScale,1);
 
     mesh.material.opacity=THREE.MathUtils.lerp(
       mesh.material.opacity,
