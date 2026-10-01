@@ -119,10 +119,10 @@ export const VISUAL_PARAMS={
       focusWidth:.16,
       focusColorBoost:.62,
       focusReflection:.72,
-      imageBaseOpacity:.52,
-      imageTiltOpacity:.18,
-      imageActiveBoost:.14,
-      imageShimmer:.24
+      imageBaseOpacity:.82,
+      imageTiltOpacity:.06,
+      imageActiveBoost:.08,
+      imageShimmer:.18
     },
 
     wire:{
