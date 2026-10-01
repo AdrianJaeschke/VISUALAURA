@@ -1542,8 +1542,8 @@ export function updateVisualScene(
     reflection.material.uniforms.uTime.value=time;
     reflection.material.uniforms.uOpacity.value=THREE.MathUtils.lerp(
       reflection.material.uniforms.uOpacity.value,
-      reflection.userData.ready?(active?.34:.055):0,
-      active?.09:.055
+      reflection.userData.ready ? (active ? .34 : .055) : 0,
+      active ? .09 : .055
     );
   });
 
