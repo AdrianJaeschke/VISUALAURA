@@ -76,6 +76,14 @@ caseOpen.addEventListener("click",async e=>{
   await presentation.open(CASES[activeCase],activeCase);
 });
 
+visual.renderer.domElement.addEventListener("click",async e=>{
+  if(!intro.classList.contains("hidden")||presentation.isOpen()||aboutOverlay.classList.contains("is-open"))return;
+  const index=visual.pickCaseLabel(e.clientX,e.clientY);
+  if(index==null)return;
+  setCase(index);
+  await presentation.open(CASES[index],index);
+});
+
 function setAboutOpen(open){
   aboutOverlay.classList.toggle("is-open",open);
   aboutOverlay.setAttribute("aria-hidden",String(!open));
