@@ -45,11 +45,14 @@ export function createCasePresentation(){
   const kicker=createElement("div","case-overlay__kicker");
   const title=createElement("h2","case-overlay__title");
   const description=createElement("p","case-overlay__description");
+  const loader=createElement("div","case-overlay__loader");
+  const loaderBar=createElement("span","case-overlay__loader-bar");
+  loader.appendChild(loaderBar);
 
   const close=createElement("button","case-overlay__close","Close");
   close.type="button";
 
-  headerCopy.append(kicker,title,description);
+  headerCopy.append(kicker,title,description,loader);
   header.append(headerCopy,close);
 
   const media=createElement("div","case-overlay__media");
@@ -65,6 +68,11 @@ export function createCasePresentation(){
   let activeCaseIndex=0;
   let openState=false;
   let currentVideo=null;
+
+  function setLoading(loading){
+    root.classList.toggle("is-loading",loading);
+    root.classList.toggle("is-loaded",!loading);
+  }
 
   function clearMedia(){
     if(currentVideo){
@@ -100,6 +108,7 @@ export function createCasePresentation(){
     activeCaseIndex=index;
 
     clearMedia();
+    setLoading(true);
 
     kicker.textContent=`Case ${String(index+1).padStart(2,"0")}`;
     title.textContent=caseData?.title||"Untitled";
@@ -122,6 +131,8 @@ export function createCasePresentation(){
       video.setAttribute("aria-label",caseData?.title||"Case video");
       hero.appendChild(video);
       currentVideo=video;
+      video.addEventListener("loadeddata",()=>setLoading(false),{once:true});
+      video.addEventListener("error",()=>setLoading(false),{once:true});
       video.play().catch(()=>{});
     }else if(imageEntries.length){
       const first=imageEntries[0];
@@ -130,10 +141,13 @@ export function createCasePresentation(){
       img.src=srcOf(first);
       img.alt=altOf(first,caseData?.title||"Case image");
       img.decoding="async";
+      img.addEventListener("load",()=>setLoading(false),{once:true});
+      img.addEventListener("error",()=>setLoading(false),{once:true});
       hero.appendChild(img);
     }else{
       const empty=createElement("div","case-overlay__empty","No media");
       hero.appendChild(empty);
+      setLoading(false);
     }
 
     const galleryEntries=videoSrc?imageEntries:imageEntries.slice(1);
