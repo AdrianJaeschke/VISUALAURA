@@ -479,3 +479,121 @@ button:disabled{opacity:.42;cursor:default;transform:none!important}
 .education-block{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10)}
 .education-block__school{margin-top:12px;font:600 15px/1.2 var(--font-display);text-transform:uppercase}
 .education-block__degree{margin-top:4px;color:rgba(255,255,255,.48);font-size:11px}
+
+
+/* Scrollable case presentation: preserve full media instead of forcing one viewport */
+.case-overlay{
+  place-items:start center !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+
+.case-overlay__panel{
+  width:min(1440px,calc(100vw - 56px)) !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  margin:auto 0 !important;
+  display:block !important;
+  overflow:visible !important;
+}
+
+.case-overlay__header{
+  position:sticky;
+  top:0;
+  z-index:4;
+  background:rgba(8,9,12,.94);
+  backdrop-filter:blur(18px) saturate(1.1);
+  -webkit-backdrop-filter:blur(18px) saturate(1.1);
+}
+
+.case-overlay__media{
+  display:block !important;
+  min-height:0 !important;
+  overflow:visible !important;
+  background:rgba(255,255,255,.08);
+}
+
+.case-overlay__hero{
+  display:block !important;
+  width:100%;
+  min-height:0 !important;
+  height:auto !important;
+  overflow:visible !important;
+  padding:14px;
+  background:rgba(5,5,7,.72);
+}
+
+.case-overlay__hero-image,
+.case-overlay__video{
+  display:block;
+  width:100% !important;
+  height:auto !important;
+  max-width:100%;
+  max-height:none !important;
+  object-fit:contain !important;
+  object-position:center;
+}
+
+.case-overlay__gallery{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:12px;
+  overflow:visible !important;
+  padding:12px 14px 18px;
+  background:rgba(5,5,7,.72);
+}
+
+.case-overlay__figure{
+  min-height:0 !important;
+  height:auto !important;
+  overflow:visible !important;
+}
+
+.case-overlay__figure img{
+  display:block;
+  width:100% !important;
+  height:auto !important;
+  max-width:100%;
+  max-height:none !important;
+  object-fit:contain !important;
+}
+
+@media(max-width:900px){
+  .case-overlay{
+    padding:10px !important;
+  }
+
+  .case-overlay__panel{
+    width:calc(100vw - 20px) !important;
+    height:auto !important;
+    max-height:none !important;
+    border-radius:14px;
+  }
+
+  .case-overlay__media{
+    display:block !important;
+    overflow:visible !important;
+    padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .case-overlay__hero{
+    width:100%;
+    min-height:0 !important;
+    height:auto !important;
+    padding:10px;
+  }
+
+  .case-overlay__gallery{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    padding:10px 10px calc(24px + env(safe-area-inset-bottom));
+  }
+}
+
+@media(max-width:560px){
+  .case-overlay__gallery{
+    grid-template-columns:1fr !important;
+  }
+}
