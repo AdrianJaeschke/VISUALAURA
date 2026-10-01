@@ -690,67 +690,26 @@ function replaceTextPlaneTexture(mesh,options){
 
 function createTypography(cases){
   const group=new THREE.Group();
+  const caseLabels=(cases||[]).map((caseData,index)=>{
+    const label=createTextPlane(
+      {
+        eyebrow:`Case ${String(index+1).padStart(2,"0")}`,
+        title:caseData?.title||"Case",
+        body:"",
+        width:1200,
+        height:360
+      },
+      new THREE.Vector3(),
+      new THREE.Vector3(1.62,.58,1)
+    );
+    label.userData.caseIndex=index;
+    label.userData.isCaseLabel=true;
+    label.material.opacity=.76;
+    group.add(label);
+    return label;
+  });
 
-  const brand=createTextPlane(
-    {
-      eyebrow:"Interactive Installation",
-      title:"Visual Aura",
-      body:"Reactive polygonal field / body / data / light"
-    },
-    new THREE.Vector3(-4.05,2.45,.65),
-    new THREE.Vector3(3.55,1.37,1)
-  );
-
-  const caseLabel=createTextPlane(
-    {
-      eyebrow:"Case 01",
-      title:cases?.[0]?.title||"Case",
-      body:cases?.[0]?.description||""
-    },
-    new THREE.Vector3(4.05,2.0,.25),
-    new THREE.Vector3(3.25,1.52,1)
-  );
-
-  const left=createTextPlane(
-    {
-      eyebrow:"Human movement",
-      title:"Reactive",
-      body:"Movement deforms the band, wire field and light response in real time."
-    },
-    new THREE.Vector3(-4.28,-1.72,-.25),
-    new THREE.Vector3(2.9,1.32,1)
-  );
-
-  const right=createTextPlane(
-    {
-      eyebrow:"Generative system",
-      title:"Data Aura",
-      body:"Triangulated ribbon / iridescent spectrum / spatial typography"
-    },
-    new THREE.Vector3(4.18,-1.72,-.20),
-    new THREE.Vector3(2.75,1.30,1)
-  );
-
-  const top=createTextPlane(
-    {
-      eyebrow:"Light / sound / movement / data",
-      title:"Realtime",
-      body:"Three.js generative spatial system"
-    },
-    new THREE.Vector3(.25,3.35,-.75),
-    new THREE.Vector3(2.85,1.00,1)
-  );
-
-  group.add(brand,caseLabel,left,right,top);
-
-  return {
-    group,
-    brand,
-    caseLabel,
-    left,
-    right,
-    top
-  };
+  return {group,caseLabels};
 }
 
 function createGlobalDitherPass(){
@@ -889,7 +848,7 @@ export async function createVisualScene(stage,cases){
   const wireAura=createWireAura();
   root.add(wireAura.group);
 
-  // Spatial typography around the installation.
+  // Case headlines anchored directly to the ribbon.
   const typography=createTypography(cases);
   scene.add(typography.group);
 
@@ -1008,15 +967,20 @@ export async function createVisualScene(stage,cases){
   function setCase(index){
     if(index===activeCaseIndex)return;
     activeCaseIndex=index;
+  }
 
-    const c=cases?.[index];
-    if(!c)return;
+  const labelRaycaster=new THREE.Raycaster();
+  const labelPointer=new THREE.Vector2();
 
-    replaceTextPlaneTexture(typography.caseLabel,{
-      eyebrow:`Case ${String(index+1).padStart(2,"0")}`,
-      title:c.title||"Case",
-      body:c.description||""
-    });
+  function pickCaseLabel(clientX,clientY){
+    const rect=renderer.domElement.getBoundingClientRect();
+    labelPointer.x=((clientX-rect.left)/rect.width)*2-1;
+    labelPointer.y=-((clientY-rect.top)/rect.height)*2+1;
+    labelRaycaster.setFromCamera(labelPointer,camera);
+    const hit=labelRaycaster.intersectObjects(typography.caseLabels,false)[0];
+    return Number.isInteger(hit?.object?.userData?.caseIndex)
+      ? hit.object.userData.caseIndex
+      : null;
   }
 
   function applyParams(){
@@ -1088,6 +1052,7 @@ export async function createVisualScene(stage,cases){
     caseTs,
     cameraRig,
     getCaseFrame,
+    pickCaseLabel,
     setCase,
     get activeCaseIndex(){return activeCaseIndex;},
     get lastState(){return lastState;},
@@ -1319,29 +1284,29 @@ export function updateVisualScene(
       rot.z+Math.sin(time*.10+frame.userData.phase)*.045;
   });
 
-  const typeR=R.typography;
-  typography.group.position.x=THREE.MathUtils.lerp(
-    typography.group.position.x,
-    pointer.x*typeR.pointerX+humanX*typeR.cameraX,
-    typeR.response
-  );
-  typography.group.position.y=THREE.MathUtils.lerp(
-    typography.group.position.y,
-    pointer.y*typeR.pointerY+humanY*typeR.cameraY,
-    typeR.response
-  );
+  // Keep every case headline visible as a small, clickable anchor on the ribbon.
+  typography.group.position.set(0,0,0);
+  typography.group.scale.setScalar(1);
+  typography.caseLabels.forEach((mesh,index)=>{
+    const frame=visual.getCaseFrame(index,state,0,0);
+    const anchor=frame.target.clone()
+      .addScaledVector(frame.normal,.16)
+      .addScaledVector(frame.side,index%2===0?.08:-.08);
 
-  const ts=THREE.MathUtils.lerp(
-    typography.group.scale.x,
-    state.typeScale*P.composition.typography.scale,
-    .014
-  );
-  typography.group.scale.setScalar(ts);
+    mesh.position.lerp(anchor,.12);
+    mesh.quaternion.slerp(camera.quaternion,.12);
 
-  typography.group.children.forEach(mesh=>{
-    if(mesh.isMesh){
-      mesh.quaternion.slerp(camera.quaternion,.065);
-    }
+    const active=index===activeCase;
+    const targetScale=(active?1.08:.82)*state.typeScale*P.composition.typography.scale;
+    const current=mesh.scale.x/1.62;
+    const nextScale=THREE.MathUtils.lerp(current,targetScale,.10);
+    mesh.scale.set(1.62*nextScale,.58*nextScale,1);
+
+    mesh.material.opacity=THREE.MathUtils.lerp(
+      mesh.material.opacity,
+      active?.98:.66,
+      .10
+    );
   });
 
   lightA.color.copy(state.palette[0]);
