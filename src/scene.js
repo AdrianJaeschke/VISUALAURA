@@ -965,7 +965,7 @@ export async function createVisualScene(stage,cases){
     side.normalize();
 
     // Every case naturally sits on a different side of the closed ribbon.
-    // Pointer / gyro then gives a full additional 360 degree orbit.
+    // Pointer / gyro only adds a bounded lateral orbit of ±45 degrees.
     const baseOffset=outward.clone()
       .multiplyScalar(P.composition.cameraRail.distance)
       .addScaledVector(side,P.composition.cameraRail.sideOffset)
@@ -1181,7 +1181,7 @@ export function updateVisualScene(
   root.updateMatrixWorld(true);
 
   // Each case owns one viewpoint along the closed ribbon.
-  // Pointer / gyro adds a true 360-degree orbit around that local case anchor.
+  // Pointer / gyro adds only the bounded lateral look around that anchor.
   const orbitX=THREE.MathUtils.clamp(
     pointer.x*P.composition.cameraRail.pointerOrbit+
     humanX*P.composition.cameraRail.motionOrbit,
