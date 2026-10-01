@@ -95,24 +95,63 @@ aboutBackdrop.addEventListener("click",()=>setAboutOpen(false));
 
 const updatePointer=(x,y)=>{targetPointer.x=x/innerWidth*2-1;targetPointer.y=-(y/innerHeight*2-1)};
 let swipeStart=null;
-addEventListener("pointermove",e=>updatePointer(e.clientX,e.clientY),{passive:true});
-addEventListener("pointerdown",e=>{
-  updatePointer(e.clientX,e.clientY);
-  if(e.target.closest?.(".case-meta,.case-dots,button,.about-overlay,.case-overlay"))return;
-  if(isMobile&&intro.classList.contains("hidden")&&!presentation.isOpen()){
-    swipeStart={id:e.pointerId,x:e.clientX,y:e.clientY,time:performance.now()};
-  }
-},{passive:true});
-addEventListener("pointerup",e=>{
-  if(!swipeStart||e.pointerId!==swipeStart.id)return;
-  const dx=e.clientX-swipeStart.x;
-  const dy=e.clientY-swipeStart.y;
+
+function canStartCaseSwipe(target){
+  return (
+    isMobile&&
+    intro.classList.contains("hidden")&&
+    !presentation.isOpen()&&
+    !aboutOverlay.classList.contains("is-open")&&
+    !target?.closest?.(".case-meta,.case-dots,button,.about-overlay,.case-overlay")
+  );
+}
+
+function finishCaseSwipe(x,y){
+  if(!swipeStart)return;
+  const dx=x-swipeStart.x;
+  const dy=y-swipeStart.y;
   const elapsed=performance.now()-swipeStart.time;
   swipeStart=null;
-  if(elapsed>850||Math.abs(dy)<52||Math.abs(dy)<Math.abs(dx)*1.15)return;
+
+  if(elapsed>1000||Math.abs(dy)<44||Math.abs(dy)<Math.abs(dx)*1.05)return;
   setCase(activeCase+(dy<0?1:-1));
+}
+
+addEventListener("pointermove",e=>updatePointer(e.clientX,e.clientY),{passive:true});
+
+// Desktop keeps pointer input. Mobile uses touch events directly because browsers
+// may cancel pointer gestures when they interpret a vertical pan.
+addEventListener("pointerdown",e=>{
+  updatePointer(e.clientX,e.clientY);
+  if(isMobile)return;
 },{passive:true});
-addEventListener("pointercancel",()=>{swipeStart=null},{passive:true});
+
+if(isMobile){
+  addEventListener("touchstart",e=>{
+    if(e.touches.length!==1)return;
+    const touch=e.touches[0];
+    updatePointer(touch.clientX,touch.clientY);
+    if(!canStartCaseSwipe(e.target)){
+      swipeStart=null;
+      return;
+    }
+    swipeStart={
+      x:touch.clientX,
+      y:touch.clientY,
+      time:performance.now()
+    };
+  },{passive:true});
+
+  addEventListener("touchend",e=>{
+    if(!swipeStart||e.changedTouches.length!==1)return;
+    const touch=e.changedTouches[0];
+    finishCaseSwipe(touch.clientX,touch.clientY);
+  },{passive:true});
+
+  addEventListener("touchcancel",()=>{
+    swipeStart=null;
+  },{passive:true});
+}
 addEventListener("wheel",e=>{if(wheelLock||!intro.classList.contains("hidden")||presentation.isOpen()||aboutOverlay.classList.contains("is-open"))return;wheelLock=true;setCase(activeCase+(e.deltaY>0?1:-1));setTimeout(()=>wheelLock=false,420)},{passive:true});
 addEventListener("keydown",e=>{
   if(e.key==="Escape"){
