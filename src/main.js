@@ -148,8 +148,8 @@ async function start(){
 }
 startButton.onclick=start;
 el("help-copy").textContent=isMobile
-  ?"Swipe ↑↓: vor / zurück · Headline antippen: fokussieren · Pfeil: Case öffnen"
-  :"Scroll ↑↓: vor / zurück · Headline klicken: fokussieren · Pfeil: Case öffnen";
+  ?"Swipe ↑↓: vor / zurück · Headline: fokussieren · Neigen ↔: Motiv + Schimmer · Pfeil: öffnen"
+  :"Scroll ↑↓: vor / zurück · Headline: fokussieren · Maus ↔: Motiv + Schimmer · Pfeil: öffnen";
 
 function lerpState(a,b,t){
   return {
