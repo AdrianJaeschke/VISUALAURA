@@ -977,7 +977,10 @@ export async function createVisualScene(stage,cases){
     labelPointer.x=((clientX-rect.left)/rect.width)*2-1;
     labelPointer.y=-((clientY-rect.top)/rect.height)*2+1;
     labelRaycaster.setFromCamera(labelPointer,camera);
-    const hit=labelRaycaster.intersectObjects(typography.caseLabels,false)[0];
+    const candidates=typography.caseLabels.filter(
+      mesh=>mesh.userData.caseIndex!==activeCaseIndex
+    );
+    const hit=labelRaycaster.intersectObjects(candidates,false)[0];
     return Number.isInteger(hit?.object?.userData?.caseIndex)
       ? hit.object.userData.caseIndex
       : null;
@@ -1297,16 +1300,20 @@ export function updateVisualScene(
     mesh.quaternion.slerp(camera.quaternion,.12);
 
     const active=index===activeCase;
-    const targetScale=(active?1.08:.82)*state.typeScale*P.composition.typography.scale;
+    if(!active)mesh.visible=true;
+
+    const targetScale=.82*state.typeScale*P.composition.typography.scale;
     const current=mesh.scale.x/1.62;
     const nextScale=THREE.MathUtils.lerp(current,targetScale,.10);
     mesh.scale.set(1.62*nextScale,.58*nextScale,1);
 
     mesh.material.opacity=THREE.MathUtils.lerp(
       mesh.material.opacity,
-      active ? .98 : .66,
-      .10
+      active ? 0 : .66,
+      active ? .16 : .10
     );
+
+    if(active&&mesh.material.opacity<.025)mesh.visible=false;
   });
 
   lightA.color.copy(state.palette[0]);
