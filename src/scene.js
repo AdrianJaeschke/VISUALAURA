@@ -388,70 +388,6 @@ function createBandMaterial(){
           clamp(reflectionMask*.44,0.,.58)
         );
 
-        // The case artwork is mapped into the actual ribbon surface UVs.
-        // Horizontal device tilt controls how strongly it emerges from the pearl.
-        float safeCount=max(1.,uCaseCount);
-        float caseIndex=floor(clamp(vSurfaceUv.x,0.,.99999)*safeCount);
-        vec2 imageUv=vec2(
-          1.-fract(vSurfaceUv.x*safeCount),
-          clamp(vSurfaceUv.y,0.,1.)
-        );
-
-        float gyro=clamp(uImageGyro,-1.,1.);
-        float tiltAmount=smoothstep(.035,.92,abs(gyro));
-        imageUv.x+=gyro*(imageUv.y-.5)*.045;
-        imageUv.y+=sin(imageUv.x*9.+uTime*.10)*gyro*.008;
-        imageUv=clamp(imageUv,vec2(.002),vec2(.998));
-
-        vec4 caseImage=sampleCaseImage(caseIndex,imageUv);
-        float imageLuma=luma(caseImage.rgb);
-        float activeMask=1.-step(.49,abs(caseIndex-uActiveCase));
-
-        float faceShimmer=.5+.5*sin(
-          vFacet*11.7+
-          vPhase*28.+
-          uTime*.48+
-          gyro*5.2
-        );
-        vec3 imageIris=thinFilmPearl(
-          clamp(cosTheta*.84+.08,0.,1.),
-          imageUv.x*2.4+imageUv.y*1.7+gyro*2.2
-        );
-
-        vec3 imageColor=mix(
-          vec3(imageLuma),
-          caseImage.rgb,
-          .72
-        );
-        imageColor=mix(
-          imageColor,
-          imageColor*(.62+imageIris*.72),
-          clamp(uImageShimmer*(.26+faceShimmer*.74),0.,.86)
-        );
-
-        float imageOpacity=
-          uImageBaseOpacity+
-          tiltAmount*uImageTiltOpacity+
-          activeMask*uImageActiveBoost;
-
-        imageOpacity*=
-          caseImage.a*
-          (.60+.40*faceShimmer)*
-          mix(.72,1.,activeMask*focusMask);
-
-        col=mix(
-          col,
-          imageColor*(1.02+fres*.18),
-          clamp(imageOpacity,0.,.72)
-        );
-
-        col+=
-          imageIris*
-          caseImage.a*
-          imageOpacity*
-          faceShimmer*
-          fres*
-          .10;
 
         float whiteSpec=pow(max(cosTheta,0.),18.)*uWhiteSpecular;
         whiteSpec+=
@@ -463,6 +399,66 @@ function createBandMaterial(){
         col+=pearl*fres*uFresnelGlow*.22;
 
         col*=uBrightness+uMotion*.035;
+
+        // Case artwork is mapped directly onto the ribbon surface.
+        // It stays readable at rest; horizontal tilt only modulates opacity
+        // and adds a restrained pearlescent shimmer.
+        float safeCount=max(1.,uCaseCount);
+        float caseIndex=floor(clamp(vSurfaceUv.x,0.,.99999)*safeCount);
+        vec2 imageUv=vec2(
+          1.-fract(vSurfaceUv.x*safeCount),
+          clamp(vSurfaceUv.y,0.,1.)
+        );
+
+        float gyro=clamp(uImageGyro,-1.,1.);
+        float tiltAmount=smoothstep(.05,.95,abs(gyro));
+        imageUv.x+=gyro*(imageUv.y-.5)*.018;
+        imageUv.y+=sin(imageUv.x*8.+uTime*.08)*gyro*.0035;
+        imageUv=clamp(imageUv,vec2(.002),vec2(.998));
+
+        vec4 caseImage=sampleCaseImage(caseIndex,imageUv);
+        float activeMask=1.-step(.49,abs(caseIndex-uActiveCase));
+
+        float faceShimmer=.5+.5*sin(
+          vFacet*9.8+
+          vPhase*18.+
+          uTime*.34+
+          gyro*4.1
+        );
+        vec3 imageIris=thinFilmPearl(
+          clamp(cosTheta*.88+.06,0.,1.),
+          imageUv.x*1.7+imageUv.y*1.1+gyro*1.5
+        );
+
+        vec3 imageColor=caseImage.rgb;
+        imageColor=mix(
+          imageColor,
+          imageColor*(.88+imageIris*.24),
+          clamp(uImageShimmer*faceShimmer,0.,.28)
+        );
+
+        float imageOpacity=
+          uImageBaseOpacity+
+          tiltAmount*uImageTiltOpacity+
+          activeMask*uImageActiveBoost;
+
+        imageOpacity*=
+          caseImage.a*
+          mix(.92,1.,activeMask);
+
+        col=mix(
+          col,
+          imageColor,
+          clamp(imageOpacity,0.,.88)
+        );
+
+        col+=
+          imageIris*
+          caseImage.a*
+          imageOpacity*
+          faceShimmer*
+          fres*
+          .025;
 
         // Transparent white in the front, denser pearl at grazing angles.
         float alpha=
@@ -918,123 +914,6 @@ function bindCaseBandTextures(material,cases){
   });
 }
 
-function createDreamHaloPass(){
-  return new ShaderPass({
-    uniforms:{
-      tDiffuse:{value:null},
-      uTime:{value:0},
-      uCenter:{value:new THREE.Vector2(.5,.5)},
-      uAspect:{value:innerWidth/innerHeight},
-      uStrength:{value:0},
-      uGhostStrength:{value:0},
-      uTilt:{value:0},
-      uA:{value:new THREE.Color("#74f7ff")},
-      uB:{value:new THREE.Color("#ff4ecf")},
-      uC:{value:new THREE.Color("#7b69ff")}
-    },
-    vertexShader:`
-      varying vec2 vUv;
-      void main(){
-        vUv=uv;
-        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
-      }
-    `,
-    fragmentShader:`
-      uniform sampler2D tDiffuse;
-      uniform float uTime,uAspect,uStrength,uGhostStrength,uTilt;
-      uniform vec2 uCenter;
-      uniform vec3 uA,uB,uC;
-      varying vec2 vUv;
-
-      float ring(vec2 uv,vec2 center,float radius,float width){
-        vec2 p=uv-center;
-        p.x*=uAspect;
-        float d=length(p);
-        return exp(-pow((d-radius)/max(width,.0001),2.));
-      }
-
-      float glow(vec2 uv,vec2 center,float size){
-        vec2 p=uv-center;
-        p.x*=uAspect;
-        float d=length(p);
-        return exp(-d*d/max(.0001,size));
-      }
-
-      float tri(vec2 p,float size){
-        p.x*=uAspect;
-        p/=max(size,.0001);
-        p.y+=.18;
-        float k=sqrt(3.);
-        p.x=abs(p.x)-1.;
-        p.y=p.y+1./k;
-        if(p.x+k*p.y>0.){
-          p=vec2(p.x-k*p.y,-k*p.x-p.y)/2.;
-        }
-        p.x-=clamp(p.x,-2.,0.);
-        return exp(-dot(p,p)*8.);
-      }
-
-      vec3 spectrum(float t){
-        vec3 wave=.5+.5*cos(6.28318*(t+vec3(0.,.31,.63)));
-        vec3 ab=mix(uA,uB,wave.x);
-        return mix(ab,uC,wave.y*.58);
-      }
-
-      vec3 ghost(vec2 uv,vec2 center,float offset,float size,float seed){
-        vec2 axis=center-vec2(.5);
-        vec2 pos=vec2(.5)-axis*offset;
-        float g=glow(uv,pos,size*size*.56);
-        float h=ring(uv,pos,size,size*.34);
-        float t=tri(uv-pos,size*1.18);
-        vec3 col=spectrum(seed+length(uv-pos)*3.8+uTilt*.18+uTime*.018);
-        return col*(g*.18+h*.52+t*.22);
-      }
-
-      void main(){
-        vec4 src=texture2D(tDiffuse,vUv);
-        vec2 c=uCenter;
-
-        vec2 p=vUv-c;
-        p.x*=uAspect;
-        float d=length(p);
-
-        float r1=ring(vUv,c,.085,.016);
-        float r2=ring(vUv,c,.155,.028);
-        float r3=ring(vUv,c,.255,.052);
-        float core=glow(vUv,c,.008);
-
-        vec3 iris=spectrum(d*4.8+uTilt*.38+uTime*.022);
-        vec3 iris2=spectrum(d*7.6-uTilt*.22-uTime*.016+.27);
-
-        vec3 halo=
-          iris*r1*1.15+
-          iris2*r2*.72+
-          mix(iris,iris2,.5)*r3*.30+
-          vec3(1.)*core*.22;
-
-        vec3 ghosts=vec3(0.);
-        ghosts+=ghost(vUv,c,.42,.045,.08);
-        ghosts+=ghost(vUv,c,.78,.075,.35);
-        ghosts+=ghost(vUv,c,1.18,.040,.64);
-
-        float screenFade=
-          smoothstep(.02,.13,c.x)*
-          smoothstep(.02,.13,1.-c.x)*
-          smoothstep(.02,.13,c.y)*
-          smoothstep(.02,.13,1.-c.y);
-
-        vec3 flare=
-          halo*uStrength+
-          ghosts*uGhostStrength;
-
-        gl_FragColor=vec4(
-          src.rgb+flare*screenFade,
-          src.a
-        );
-      }
-    `
-  });
-}
 
 function createGlobalDitherPass(){
   return new ShaderPass({
@@ -1132,13 +1011,11 @@ export async function createVisualScene(stage,cases){
     P.bloom.threshold
   );
   const ditherPass=createGlobalDitherPass();
-  const haloPass=createDreamHaloPass();
   const outputPass=new OutputPass();
 
   composer.addPass(renderPass);
   composer.addPass(bloomPass);
   composer.addPass(ditherPass);
-  composer.addPass(haloPass);
   composer.addPass(outputPass);
 
   const root=new THREE.Group();
@@ -1344,8 +1221,6 @@ export async function createVisualScene(stage,cases){
     bandMaterial.uniforms.uImageActiveBoost.value=P.material.band.imageActiveBoost;
     bandMaterial.uniforms.uImageShimmer.value=P.material.band.imageShimmer;
 
-    haloPass.uniforms.uStrength.value=0;
-    haloPass.uniforms.uGhostStrength.value=0;
 
     bandWireMaterial.uniforms.uGlow.value=P.material.wire.glow;
     bandWireMaterial.uniforms.uOpacity.value=Math.min(1,P.material.wire.opacity+.18);
@@ -1378,14 +1253,13 @@ export async function createVisualScene(stage,cases){
 
     composer.setPixelRatio(ratio);
     composer.setSize(innerWidth,innerHeight);
-    haloPass.uniforms.uAspect.value=innerWidth/innerHeight;
     wireAura.pointMat.uniforms.uPixelRatio.value=ratio;
   }
 
   setCase(0);
 
   return {
-    scene,camera,renderer,composer,bloomPass,ditherPass,haloPass,root,
+    scene,camera,renderer,composer,bloomPass,ditherPass,root,
     bandMesh,bandMaterial,bandWire,bandWireMaterial,
     wireAura,
     typography,
@@ -1425,7 +1299,7 @@ export function updateVisualScene(
     root,camera,
     bandMesh,bandMaterial,bandWireMaterial,
     wireAura,typography,caseBandAnchors,
-    bloomPass,ditherPass,haloPass,
+    bloomPass,ditherPass,
     cameraRig,
     key,lightA,lightB
   }=visual;
@@ -1695,35 +1569,6 @@ export function updateVisualScene(
     );
   });
 
-  // Variant B: dreamlike iris halo + triangular ghosts around the active case focus.
-  const flarePoint=view.target.clone()
-    .addScaledVector(view.normal,.10)
-    .project(camera);
-
-  haloPass.uniforms.uTime.value=time;
-  haloPass.uniforms.uCenter.value.set(
-    flarePoint.x*.5+.5,
-    flarePoint.y*.5+.5
-  );
-  haloPass.uniforms.uAspect.value=innerWidth/innerHeight;
-  haloPass.uniforms.uTilt.value=pointer.x;
-  haloPass.uniforms.uA.value.copy(state.palette[0]);
-  haloPass.uniforms.uB.value.copy(state.palette[1]||state.palette[0]);
-  haloPass.uniforms.uC.value.copy(
-    state.palette[2]||state.palette[1]||state.palette[0]
-  );
-
-  const tiltEnergy=Math.min(1,Math.abs(pointer.x));
-  haloPass.uniforms.uStrength.value=THREE.MathUtils.lerp(
-    haloPass.uniforms.uStrength.value,
-    P.postfx.halo.strength*(.58+tiltEnergy*.42),
-    .075
-  );
-  haloPass.uniforms.uGhostStrength.value=THREE.MathUtils.lerp(
-    haloPass.uniforms.uGhostStrength.value,
-    P.postfx.halo.ghostStrength*(.42+tiltEnergy*.58),
-    .065
-  );
 
   lightA.color.copy(state.palette[0]);
   lightB.color.copy(state.palette[1]||state.palette[0]);
