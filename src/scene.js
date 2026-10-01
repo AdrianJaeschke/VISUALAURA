@@ -712,6 +712,174 @@ function createTypography(cases){
   return {group,caseLabels};
 }
 
+function caseHeroSource(caseData){
+  const first=caseData?.presentation?.images?.[0];
+  return caseData?.hero?.image||
+    (typeof first==="string"?first:first?.src)||
+    "";
+}
+
+function createCaseTriangleGeometry(){
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute([
+      0,.16,0,
+      -.14,-.10,0,
+      .14,-.10,0
+    ],3)
+  );
+  geometry.setIndex([0,1,2]);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createReflectionMaterial(texture,tint){
+  return new THREE.ShaderMaterial({
+    side:THREE.DoubleSide,
+    transparent:true,
+    depthWrite:false,
+    depthTest:true,
+    blending:THREE.AdditiveBlending,
+    toneMapped:false,
+    uniforms:{
+      uMap:{value:texture},
+      uTint:{value:new THREE.Color(tint||"#ffffff")},
+      uOpacity:{value:0},
+      uTime:{value:0}
+    },
+    vertexShader:`
+      varying vec2 vUv;
+      varying vec3 vWorld;
+      varying vec3 vNormalW;
+
+      void main(){
+        vUv=uv;
+        vec4 world=modelMatrix*vec4(position,1.);
+        vWorld=world.xyz;
+        vNormalW=normalize(mat3(modelMatrix)*normal);
+        gl_Position=projectionMatrix*viewMatrix*world;
+      }
+    `,
+    fragmentShader:`
+      uniform sampler2D uMap;
+      uniform vec3 uTint;
+      uniform float uOpacity,uTime;
+
+      varying vec2 vUv;
+      varying vec3 vWorld;
+      varying vec3 vNormalW;
+
+      float luma(vec3 c){
+        return dot(c,vec3(.299,.587,.114));
+      }
+
+      void main(){
+        vec2 uv=vUv;
+        uv.x=1.-uv.x;
+
+        // A tiny optical wobble keeps the image reading as reflection,
+        // not as a rectangular texture pasted onto the ribbon.
+        uv.x+=sin(uv.y*22.+uTime*.35)*.008;
+        uv.y+=sin(uv.x*16.-uTime*.22)*.004;
+
+        vec4 tex=texture2D(uMap,uv);
+        float lum=luma(tex.rgb);
+
+        float edgeX=
+          smoothstep(0.,.16,vUv.x)*
+          smoothstep(0.,.16,1.-vUv.x);
+        float edgeY=
+          smoothstep(0.,.20,vUv.y)*
+          smoothstep(0.,.20,1.-vUv.y);
+        float edge=edgeX*edgeY;
+
+        vec3 N=normalize(vNormalW);
+        vec3 V=normalize(cameraPosition-vWorld);
+        float grazing=pow(1.-abs(dot(N,V)),.55);
+        float shimmer=.86+.14*sin(vUv.y*42.+uTime*.55);
+
+        vec3 reflected=mix(vec3(lum),tex.rgb,.48);
+        reflected=mix(reflected,uTint,.12);
+        reflected*=1.04+grazing*.28;
+
+        float alpha=
+          uOpacity*
+          edge*
+          (.22+lum*.92)*
+          (.58+grazing*.42)*
+          shimmer*
+          tex.a;
+
+        if(alpha<.006)discard;
+        gl_FragColor=vec4(reflected,alpha);
+      }
+    `
+  });
+}
+
+function createCaseBandAnchors(cases){
+  const group=new THREE.Group();
+  const triangleGeometry=createCaseTriangleGeometry();
+  const fallbackPixel=new Uint8Array([255,255,255,255]);
+  const fallbackTexture=new THREE.DataTexture(fallbackPixel,1,1,THREE.RGBAFormat);
+  fallbackTexture.colorSpace=THREE.SRGBColorSpace;
+  fallbackTexture.needsUpdate=true;
+  const loader=new THREE.TextureLoader();
+
+  const anchors=(cases||[]).map((caseData,index)=>{
+    const color=caseData?.palette?.[0]||"#ffffff";
+
+    const markerMaterial=new THREE.MeshBasicMaterial({
+      color,
+      transparent:true,
+      opacity:.88,
+      depthWrite:false,
+      depthTest:true,
+      blending:THREE.AdditiveBlending,
+      toneMapped:false,
+      side:THREE.DoubleSide
+    });
+    const marker=new THREE.Mesh(triangleGeometry,markerMaterial);
+    marker.renderOrder=315;
+    marker.userData.caseIndex=index;
+
+    const reflectionMaterial=createReflectionMaterial(fallbackTexture,color);
+    const reflection=new THREE.Mesh(
+      new THREE.PlaneGeometry(1,1),
+      reflectionMaterial
+    );
+    reflection.renderOrder=7;
+    reflection.userData.caseIndex=index;
+    reflection.userData.ready=false;
+    reflection.userData.aspect=16/9;
+
+    const src=caseHeroSource(caseData);
+    if(src){
+      loader.load(
+        src,
+        texture=>{
+          texture.colorSpace=THREE.SRGBColorSpace;
+          texture.minFilter=THREE.LinearFilter;
+          texture.magFilter=THREE.LinearFilter;
+          reflectionMaterial.uniforms.uMap.value=texture;
+          const width=texture.image?.naturalWidth||texture.image?.width||16;
+          const height=texture.image?.naturalHeight||texture.image?.height||9;
+          reflection.userData.aspect=Math.max(.25,Math.min(4,width/Math.max(1,height)));
+          reflection.userData.ready=true;
+        },
+        undefined,
+        ()=>{reflection.userData.ready=false;}
+      );
+    }
+
+    group.add(reflection,marker);
+    return {marker,reflection};
+  });
+
+  return {group,anchors};
+}
+
 function createGlobalDitherPass(){
   return new ShaderPass({
     uniforms:{
@@ -851,6 +1019,10 @@ export async function createVisualScene(stage,cases){
   // Case headlines anchored directly to the ribbon.
   const typography=createTypography(cases);
   scene.add(typography.group);
+
+  // Colored case markers plus mirrored hero motifs projected onto the ribbon.
+  const caseBandAnchors=createCaseBandAnchors(cases);
+  scene.add(caseBandAnchors.group);
 
   // Minimal lighting for translucent/specular read.
   scene.add(new THREE.AmbientLight(0xffffff,.15));
@@ -1050,6 +1222,7 @@ export async function createVisualScene(stage,cases){
     bandMesh,bandMaterial,bandWire,bandWireMaterial,
     wireAura,
     typography,
+    caseBandAnchors,
     key,lightA,lightB,
     bandCurve,
     caseTs,
@@ -1084,7 +1257,7 @@ export function updateVisualScene(
   const {
     root,camera,
     bandMesh,bandMaterial,bandWireMaterial,
-    wireAura,typography,
+    wireAura,typography,caseBandAnchors,
     bloomPass,ditherPass,
     cameraRig,
     key,lightA,lightB
@@ -1314,6 +1487,64 @@ export function updateVisualScene(
     );
 
     if(active&&mesh.material.opacity<.025)mesh.visible=false;
+  });
+
+  // Mark each case point with a colored triangle and stage one case-folder
+  // hero image as a mirrored light reflection directly on the band.
+  caseBandAnchors.anchors.forEach(({marker,reflection},index)=>{
+    const frame=visual.getCaseFrame(index,state,0,0);
+    const active=index===activeCase;
+
+    const basis=new THREE.Matrix4().makeBasis(
+      frame.tangent,
+      frame.side.clone().multiplyScalar(-1),
+      frame.normal
+    );
+    const orientation=new THREE.Quaternion().setFromRotationMatrix(basis);
+
+    marker.position.lerp(
+      frame.target.clone()
+        .addScaledVector(frame.normal,.07)
+        .addScaledVector(frame.side,.31),
+      .16
+    );
+    marker.quaternion.slerp(orientation,.18);
+    const markerScale=THREE.MathUtils.lerp(
+      marker.scale.x||1,
+      active?1.18:.78,
+      .12
+    );
+    marker.scale.setScalar(markerScale);
+    marker.material.opacity=THREE.MathUtils.lerp(
+      marker.material.opacity,
+      active?1:.72,
+      .12
+    );
+
+    reflection.position.lerp(
+      frame.target.clone().addScaledVector(frame.normal,.035),
+      .14
+    );
+    reflection.quaternion.slerp(orientation,.16);
+
+    const aspect=reflection.userData.aspect||16/9;
+    let width=1.5;
+    let height=width/aspect;
+    if(height>.70){
+      height=.70;
+      width=height*aspect;
+    }
+    width=Math.min(width,1.62);
+    reflection.scale.x=THREE.MathUtils.lerp(reflection.scale.x,width,.12);
+    reflection.scale.y=THREE.MathUtils.lerp(reflection.scale.y,height,.12);
+    reflection.scale.z=1;
+
+    reflection.material.uniforms.uTime.value=time;
+    reflection.material.uniforms.uOpacity.value=THREE.MathUtils.lerp(
+      reflection.material.uniforms.uOpacity.value,
+      reflection.userData.ready?(active?.34:.055):0,
+      active?.09:.055
+    );
   });
 
   lightA.color.copy(state.palette[0]);
