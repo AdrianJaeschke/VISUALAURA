@@ -104,7 +104,7 @@ addEventListener("pointerup",e=>{
   setCase(activeCase+(dy<0?1:-1));
 },{passive:true});
 addEventListener("pointercancel",()=>{swipeStart=null},{passive:true});
-addEventListener("wheel",e=>{if(wheelLock||!intro.classList.contains("hidden")||presentation.isOpen())return;wheelLock=true;setCase(activeCase+(e.deltaY>0?1:-1));setTimeout(()=>wheelLock=false,420)},{passive:true});
+addEventListener("wheel",e=>{if(wheelLock||!intro.classList.contains("hidden")||presentation.isOpen()||aboutOverlay.classList.contains("is-open"))return;wheelLock=true;setCase(activeCase+(e.deltaY>0?1:-1));setTimeout(()=>wheelLock=false,420)},{passive:true});
 addEventListener("keydown",e=>{
   if(e.key==="Escape"){
     if(aboutOverlay.classList.contains("is-open")){setAboutOpen(false);return;}
