@@ -1,5 +1,5 @@
 {
-  "generated": "2026-09-30T18:39:54",
+  "generated": "2026-10-01T07:59:08",
   "cases": [
     {
       "id": "case1",
@@ -449,6 +449,86 @@
       },
       "hero": {
         "image": "/media/case7/1.jpg"
+      }
+    },
+    {
+      "id": "case8",
+      "slug": "case8",
+      "folder": "case8",
+      "title": "MERCEDES-BENZ VANS CONNECTED TO MOVE",
+      "description": "Event on the IAA Transport",
+      "textSource": "case8.txt",
+      "year": 2026,
+      "location": {
+        "city": "",
+        "country": "",
+        "lat": 0,
+        "lng": 0
+      },
+      "disciplines": [
+        "Visual"
+      ],
+      "tags": [
+        "Motion",
+        "Film",
+        "Archive"
+      ],
+      "palette": [
+        "#ff6179",
+        "#e4ff52",
+        "#4dcfff"
+      ],
+      "intensity": 0.84,
+      "complexity": 0.746,
+      "featured": false,
+      "visual": {
+        "bandScale": 1.0495,
+        "bandDepth": 1.0801,
+        "bandTwist": 0.0937,
+        "wireScale": 0.9379,
+        "typeScale": 0.9953,
+        "bloomBias": 0.0234,
+        "orbitBias": -0.1628,
+        "iridescenceBias": 0.8801
+      },
+      "presentation": {
+        "images": [
+          {
+            "src": "/media/case8/1.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — 1"
+          },
+          {
+            "src": "/media/case8/DSC02395.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — DSC02395"
+          },
+          {
+            "src": "/media/case8/DSC02406.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — DSC02406"
+          },
+          {
+            "src": "/media/case8/DSC02428.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — DSC02428"
+          },
+          {
+            "src": "/media/case8/DSC02459.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — DSC02459"
+          },
+          {
+            "src": "/media/case8/DSC02489.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — DSC02489"
+          },
+          {
+            "src": "/media/case8/DSC02632.jpg",
+            "alt": "MERCEDES-BENZ VANS CONNECTED TO MOVE — DSC02632"
+          }
+        ],
+        "video": {
+          "src": "/media/case8/MB_Vans_IAAT_ConnectedToMove_1_1_1.mp4"
+        }
+      },
+      "hero": {
+        "image": "/media/case8/1.jpg",
+        "video": "/media/case8/MB_Vans_IAAT_ConnectedToMove_1_1_1.mp4"
       }
     }
   ]
