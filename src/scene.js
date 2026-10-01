@@ -17,7 +17,6 @@ function rand(a,b=1){
 function pushTriangle(
   targets,
   a,b,c,
-  phase,
   facet,
   surfaceA=[0,0],
   surfaceB=[1,0],
@@ -34,7 +33,9 @@ function pushTriangle(
     uvs.push(triUvs[i][0],triUvs[i][1]);
     surfaceUvs.push(triSurface[i][0],triSurface[i][1]);
     bary.push(...triBary[i]);
-    phases.push(phase);
+    // Use the continuous ribbon coordinate for deformation.
+    // This keeps duplicated vertices on shared triangle edges in lockstep.
+    phases.push(triSurface[i][0]);
     facets.push(facet);
   }
 }
@@ -121,7 +122,6 @@ function createRibbonGeometry(){
 
   for(let i=0;i<n;i++){
     const j=(i+1)%n;
-    const phase=i/n;
     const facetA=.28+rand(i,7.1)*.72;
     const facetB=.28+rand(i,8.3)*.72;
 
@@ -130,20 +130,20 @@ function createRibbonGeometry(){
 
     if(i%2===0){
       pushTriangle(
-        data,outer[i],inner[i],outer[j],phase,facetA,
+        data,outer[i],inner[i],outer[j],facetA,
         [u0,1],[u0,0],[u1,1]
       );
       pushTriangle(
-        data,outer[j],inner[i],inner[j],phase,facetB,
+        data,outer[j],inner[i],inner[j],facetB,
         [u1,1],[u0,0],[u1,0]
       );
     }else{
       pushTriangle(
-        data,outer[i],inner[i],inner[j],phase,facetA,
+        data,outer[i],inner[i],inner[j],facetA,
         [u0,1],[u0,0],[u1,0]
       );
       pushTriangle(
-        data,outer[i],inner[j],outer[j],phase,facetB,
+        data,outer[i],inner[j],outer[j],facetB,
         [u0,1],[u1,0],[u1,1]
       );
     }
@@ -239,7 +239,11 @@ function createBandMaterial(){
         vec3 p=position;
         p.z*=uDepth;
 
-        float twist=(phase-.5)*uCaseTwist;
+        // Periodic deformation is essential for a closed ribbon.
+        // phase=0 and phase=1 now resolve to the exact same transform.
+        float twist=
+          sin(phase*6.2831853)*
+          uCaseTwist*.5;
         float ct=cos(twist);
         float st=sin(twist);
         p.xy=mat2(ct,-st,st,ct)*p.xy;
@@ -248,7 +252,13 @@ function createBandMaterial(){
           sin(phase*31.4159+uTime*.34)*
           (.012+uMotion*.055);
 
-        p+=normal*wave;
+        // Never offset duplicated triangle vertices along their flat face normals.
+        // Adjacent faces have different normals, which physically pulls their
+        // shared edges apart. Position-based displacement stays watertight.
+        vec3 waveDir=normalize(
+          vec3(p.x,p.y,p.z*.22)+vec3(0.,0.,.0001)
+        );
+        p+=waveDir*wave;
         p.z+=(p.x*uHuman.x+p.y*uHuman.y)*.014;
 
         vec4 world=modelMatrix*vec4(p,1.);
@@ -1088,7 +1098,7 @@ export async function createVisualScene(stage,cases){
 
     local.z*=depth;
 
-    const angle=(t-.5)*twist;
+    const angle=Math.sin(t*Math.PI*2)*twist*.5;
     const ct=Math.cos(angle);
     const st=Math.sin(angle);
     const x=local.x*ct-local.y*st;
