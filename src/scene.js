@@ -377,12 +377,9 @@ function createBandMaterial(){
 
 
         // Transparent white in the front, denser pearl at grazing angles.
-        float baseAlpha=
+        float alpha=
           uOpacity*
           (.62+fres*.32+edge*.06);
-        float imageAlpha=
-          clamp(imageOpacity*.88,0.,.86);
-        float alpha=max(baseAlpha,imageAlpha);
 
         gl_FragColor=vec4(col,clamp(alpha,0.,.94));
       }
