@@ -1291,7 +1291,7 @@ export function updateVisualScene(
     const frame=visual.getCaseFrame(index,state,0,0);
     const anchor=frame.target.clone()
       .addScaledVector(frame.normal,.16)
-      .addScaledVector(frame.side,index%2===0?.08:-.08);
+      .addScaledVector(frame.side,index%2===0 ? .08 : -.08);
 
     mesh.position.lerp(anchor,.12);
     mesh.quaternion.slerp(camera.quaternion,.12);
@@ -1304,7 +1304,7 @@ export function updateVisualScene(
 
     mesh.material.opacity=THREE.MathUtils.lerp(
       mesh.material.opacity,
-      active?.98:.66,
+      active ? .98 : .66,
       .10
     );
   });
