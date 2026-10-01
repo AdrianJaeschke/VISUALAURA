@@ -445,6 +445,7 @@ button:disabled{opacity:.42;cursor:default;transform:none!important}
 .about-contact{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.9fr);align-items:end;gap:32px;padding:32px 28px 30px;border-top:1px solid rgba(255,255,255,.1);background:rgba(5,5,7,.9)}
 .about-contact__copy h3{margin:14px 0 16px;font:700 clamp(32px,5vw,68px)/.88 var(--font-display);letter-spacing:-.03em;text-transform:uppercase}
 .about-contact__copy p{max-width:48ch;margin:0;color:rgba(255,255,255,.54);font-size:13px;line-height:1.6}
+.about-contact__actions{display:grid;gap:10px}
 .about-contact__button{min-height:82px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:10px 10px 10px 22px;border:1px solid rgba(255,255,255,.22);border-radius:999px;color:#fff;text-decoration:none;background:rgba(255,255,255,.035);font:600 clamp(15px,2vw,21px)/1 var(--font-display);letter-spacing:.05em;text-transform:uppercase;transition:background .25s ease,color .25s ease,border-color .25s ease,transform .25s ease}
 .about-contact__button-arrow{flex:0 0 60px;width:60px;height:60px;display:grid;place-items:center;border-radius:50%;background:#fff;color:#050507;font-size:24px;line-height:1;transition:transform .25s ease,background .25s ease,color .25s ease}
 .about-contact__button:hover{background:#fff;color:#050507;border-color:#fff;transform:translateY(-2px)}
