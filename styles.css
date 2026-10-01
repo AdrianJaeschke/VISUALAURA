@@ -19,7 +19,7 @@ body{font-family:var(--font-ui)}
 .brand strong{display:block;color:var(--fg);font-size:15px;letter-spacing:.12em;font-family:var(--font-display)}
 .mode{justify-self:end;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:8px 10px;backdrop-filter:blur(18px);background:rgba(0,0,0,.18);font-family:var(--font-display)}
 .case-meta{align-self:end;max-width:460px;pointer-events:auto;display:grid;gap:8px}.case-kicker{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:var(--muted);font-family:var(--font-display)}
-.case-title{margin:0;font-size:clamp(30px,5vw,68px);font-weight:700;line-height:.92;letter-spacing:-.02em;text-transform:uppercase;font-family:var(--font-display)}
+.case-title{margin:0;font-size:clamp(30px,5vw,68px);font-weight:700;line-height:.92;letter-spacing:-.02em;text-transform:uppercase;font-family:var(--font-display);color:#fff;mix-blend-mode:difference}
 .case-detail{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted)}
 .case-detail span::before{content:"•";margin-right:12px;color:var(--cyan)}.case-detail span:first-child::before{content:"";margin:0}
 .help{align-self:end;justify-self:end;text-align:right;max-width:280px;font-size:10px;line-height:1.55;color:var(--muted);letter-spacing:.04em}
@@ -31,7 +31,7 @@ button.primary{color:#050507;background:var(--fg);border-color:var(--fg)}button:
 .case-dots{position:fixed;z-index:12;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto}.case-dot{width:6px;height:6px;border-radius:999px;border:0;padding:0;background:rgba(255,255,255,.28);transition:width .25s ease,background .25s ease}.case-dot.active{width:28px;background:#fff}
 @media(max-width:760px){.hud{padding:14px}.case-title{font-size:clamp(36px,13vw,64px)}.help{display:none}.case-meta{max-width:85vw}.panel{border-radius:20px;padding:22px}.brand strong{font-size:13px}.mode{font-size:9px}}
 .case-title,.case-kicker{cursor:pointer;transition:opacity .25s ease,text-shadow .25s ease}
-.case-title:hover,.case-kicker:hover{opacity:.86;text-shadow:0 0 18px rgba(119,247,255,.16)}
+.case-title:hover{opacity:.92;text-shadow:none}.case-kicker:hover{opacity:.86;text-shadow:0 0 18px rgba(119,247,255,.16)}
 body.case-presentation-open .case-meta{opacity:.78}
 
 
